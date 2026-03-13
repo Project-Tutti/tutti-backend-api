@@ -11,5 +11,6 @@ resources:
   - cloudflared/deployment.yaml
   # ingress.yaml 제거 — Cloudflare Tunnel로 대체 (💰 LB 비용 $0)
 
-commonLabels:
-  project: tutti-platform
+labels:
+- pairs:
+    project: tutti-platform
