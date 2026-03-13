@@ -1,0 +1,45 @@
+# ══════════════════════════════════════════════════════════════
+# Tutti — docker-compose (로컬 개발 환경)
+# ══════════════════════════════════════════════════════════════
+version: '3.8'
+
+services:
+  # ── PostgreSQL (로컬 개발용) ──
+  postgres:
+    image: postgres:16-alpine
+    container_name: tutti-postgres
+    environment:
+      POSTGRES_DB: tutti_dev
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Spring Boot Main Server ──
+  main-server:
+    build:
+      context: ./main-server
+      dockerfile: Dockerfile
+    container_name: tutti-main-server
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      AI_SERVER_URL: ${AI_SERVER_URL:-http://host.docker.internal:8000}
+      CALLBACK_BASE_URL: http://main-server:8080
+      JWT_SECRET: dev-secret-key-for-local-development-only-32chars
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:

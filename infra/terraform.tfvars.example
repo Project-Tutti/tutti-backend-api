@@ -1,0 +1,17 @@
+# ══════════════════════════════════════════════════════════════
+# Tutti — Terraform 변수 예시 파일
+#
+# ⚠️ 사용법:
+#   1. cp terraform.tfvars.example terraform.tfvars
+#   2. 실제 값으로 교체
+#   3. terraform.tfvars는 .gitignore에 포함되어 커밋되지 않음
+# ══════════════════════════════════════════════════════════════
+
+project_id        = "your-gcp-project-id"
+region            = "us-central1"
+zone              = "us-central1-a"
+cluster_name      = "tutti-cluster"
+node_machine_type = "e2-medium"
+min_node_count    = 1
+max_node_count    = 3
+disk_size_gb      = 30

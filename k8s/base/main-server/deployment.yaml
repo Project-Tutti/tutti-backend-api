@@ -1,0 +1,119 @@
+# ══════════════════════════════════════════════════════════════
+# Tutti — K8s Main Server Deployment
+# ══════════════════════════════════════════════════════════════
+#
+# 💡 Cloudflare Tunnel 전환 후:
+#   • AI_SERVER_URL은 Cloudflare Tunnel 경유 URL
+#   • CALLBACK_BASE_URL은 Cloudflare를 통해 외부에서 접근 가능한 URL
+#   • replicas: 1 (HPA가 스케일업 담당, Spot VM 비용 최소화)
+#
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: main-server
+  namespace: tutti
+  labels:
+    app: main-server
+    tier: backend
+spec:
+  replicas: 1  # 💰 Spot VM 비용 최소화: HPA가 필요 시 스케일업
+  # ⚠️ 단일 레플리카에서 무중단 배포를 위한 전략
+  # maxUnavailable: 0 → 새 파드가 Ready되기 전까지 기존 파드를 유지
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: main-server
+  template:
+    metadata:
+      labels:
+        app: main-server
+        tier: backend
+    spec:
+      containers:
+        - name: main-server
+          image: REGION-docker.pkg.dev/PROJECT_ID/tutti/main-server:latest
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: "prod"
+            # ── Supabase Database ──
+            - name: SUPABASE_DB_URL
+              valueFrom:
+                secretKeyRef:
+                  name: tutti-secrets
+                  key: supabase-db-url
+            - name: SUPABASE_DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: tutti-secrets
+                  key: supabase-db-username
+            - name: SUPABASE_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: tutti-secrets
+                  key: supabase-db-password
+            # ── Supabase API (프론트엔드 연동용) ──
+            - name: SUPABASE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: tutti-secrets
+                  key: supabase-key
+            - name: SUPABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: tutti-secrets
+                  key: supabase-url
+            # ── JWT ──
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: tutti-secrets
+                  key: jwt-secret
+            # ── AI Server (Cloudflare Tunnel 경유) ──
+            # 학교 GPU 서버에 설치된 cloudflared를 통해 Cloudflare Tunnel로 연결
+            - name: AI_SERVER_URL
+              value: "https://REDACTED"
+            # ── Callback URL (Cloudflare 경유 외부 접근 가능 URL) ──
+            - name: CALLBACK_BASE_URL
+              value: "https://REDACTED"
+            # ── AI Callback Secret ──
+            - name: AI_CALLBACK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: tutti-secrets
+                  key: ai-callback-secret
+          resources:
+            requests:
+              cpu: "250m"       # e2-medium(2 vCPU)에 적합한 요청
+              memory: "384Mi"
+            limits:
+              cpu: "1000m"
+              memory: "768Mi"   # Spring Boot 앱에 충분한 메모리
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 3
+          startupProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 30
+      terminationGracePeriodSeconds: 30

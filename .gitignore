@@ -1,0 +1,52 @@
+# ══════════════════════════════════════════════════════════════
+# Tutti Main Server — .gitignore
+# ══════════════════════════════════════════════════════════════
+
+# ── IDE ──
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+*~
+local_docs/
+
+# ── macOS ──
+.DS_Store
+Thumbs.db
+
+# ── Java / Gradle ──
+main-server/build/
+main-server/.gradle/
+main-server/bin/
+main-server/out/
+*.class
+*.jar
+!main-server/gradle/wrapper/gradle-wrapper.jar
+
+# ── Docker ──
+docker-compose.override.yml
+
+# ── Kubernetes Secrets ──
+k8s/secrets/*.yaml
+!k8s/secrets/secrets-template.yaml
+
+# ── Terraform ──
+infra/.terraform/
+infra/*.tfstate
+infra/*.tfstate.backup
+infra/*.tfvars
+!infra/terraform.tfvars.example
+infra/.terraform.lock.hcl
+
+# ── Environment Files ──
+.env
+.env.local
+.env.*.local
+
+# ── Logs ──
+*.log
+logs/
+
+# ── Test ──
+main-server/build/reports/
