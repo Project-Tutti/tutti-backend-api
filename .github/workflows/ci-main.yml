@@ -26,9 +26,9 @@ on:
 
 env:
   REGISTRY: us-central1-docker.pkg.dev
-  IMAGE_NAME: ${{ vars.GCP_PROJECT_ID }}/tutti/main-server
-  GKE_CLUSTER: ${{ vars.GKE_CLUSTER_NAME }}
-  GKE_ZONE: ${{ vars.GKE_ZONE }}
+  IMAGE_NAME: ${{ secrets.GCP_PROJECT_ID }}/tutti/main-server
+  GKE_CLUSTER: ${{ secrets.GKE_CLUSTER_NAME }}
+  GKE_ZONE: ${{ secrets.GKE_ZONE }}
 
 jobs:
   # ================================================================
