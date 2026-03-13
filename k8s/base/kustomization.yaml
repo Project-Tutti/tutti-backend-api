@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: tutti
+
+resources:
+  - namespace.yaml
+  - main-server/deployment.yaml
+  - main-server/service.yaml
+  - main-server/hpa.yaml
+  - cloudflared/deployment.yaml
+  # ingress.yaml 제거 — Cloudflare Tunnel로 대체 (💰 LB 비용 $0)
+
+commonLabels:
+  project: tutti-platform

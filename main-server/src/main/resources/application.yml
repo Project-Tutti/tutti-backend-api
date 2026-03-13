@@ -1,0 +1,153 @@
+# ────────────────────────────────────────────────────────────
+# Tutti Main Server — Application Configuration
+# ────────────────────────────────────────────────────────────
+
+spring:
+  application:
+    name: tutti-main-server
+
+  profiles:
+    active: local # 기본 프로필: local
+
+  # ── JPA / Hibernate ──
+  jpa:
+    hibernate:
+      ddl-auto: validate # 운영 안정성: 스키마 검증만 수행
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+        default_batch_fetch_size: 100
+    open-in-view: false # OSIV 비활성화 (성능 최적화)
+
+  # ── File Upload ──
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 15MB
+
+  # ── Jackson ──
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+
+# ── Server ──
+server:
+  port: 8080
+  shutdown: graceful
+
+# ── Actuator ──
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when_authorized
+
+# ── JWT Configuration ──
+jwt:
+  secret: ${JWT_SECRET:your-256-bit-secret-key-for-development-only-change-in-production}
+  access-token-expiration: 3600000 # 1시간 (ms)
+  refresh-token-expiration: 1209600000 # 14일 (ms)
+
+# ── SpringDoc (Swagger UI) ──
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: method
+
+# ── AI Server ──
+ai:
+  server:
+    base-url: ${AI_SERVER_URL:http://localhost:8000}
+    timeout: 30000 # 초기 요청 타임아웃 (ms)
+    callback-base-url: ${CALLBACK_BASE_URL:http://localhost:8080}
+    callback-secret: ${AI_CALLBACK_SECRET:default-callback-secret}
+
+# ── Logging ──
+logging:
+  level:
+    root: INFO
+    com.tutti.server: DEBUG
+    org.hibernate.SQL: DEBUG
+
+---
+# ══════════════════════════════════════════════════════════════
+# Profile: local
+# ══════════════════════════════════════════════════════════════
+spring:
+  config:
+    activate:
+      on-profile: local
+  datasource:
+    url: jdbc:postgresql://localhost:5432/tutti_dev
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update # 로컬에서는 스키마 자동 업데이트
+
+---
+# ══════════════════════════════════════════════════════════════
+# Profile: dev
+# ══════════════════════════════════════════════════════════════
+spring:
+  config:
+    activate:
+      on-profile: dev
+  datasource:
+    url: ${SUPABASE_DB_URL}
+    username: ${SUPABASE_DB_USERNAME}
+    password: ${SUPABASE_DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 30000
+
+---
+# ══════════════════════════════════════════════════════════════
+# Profile: prod
+# ══════════════════════════════════════════════════════════════
+spring:
+  config:
+    activate:
+      on-profile: prod
+  datasource:
+    url: ${SUPABASE_DB_URL}
+    username: ${SUPABASE_DB_USERNAME}
+    password: ${SUPABASE_DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 10
+      connection-timeout: 30000
+  jpa:
+    show-sql: false
+
+# SEC-1: prod에서 JWT_SECRET 환경변수 필수 (기본값 없음 → 미설정 시 시작 실패)
+jwt:
+  secret: ${JWT_SECRET}
+
+# SEC-3: prod에서 Swagger UI 비활성화
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+# SEC-4: prod에서 콜백 시크릿 필수
+ai:
+  server:
+    callback-secret: ${AI_CALLBACK_SECRET}
+
+logging:
+  level:
+    root: WARN
+    com.tutti.server: INFO
