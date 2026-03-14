@@ -66,7 +66,13 @@ public class SecurityConfig {
                                                 // ── Actuator Health ──
                                                 .requestMatchers("/actuator/health").permitAll()
                                                 // ── Swagger UI ──
-                                                .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                                                .requestMatchers(
+                                                                "/swagger-ui/**",
+                                                                "/swagger-ui.html",
+                                                                "/swagger-resources/**",
+                                                                "/v3/api-docs/**",
+                                                                "/webjars/**")
+                                                .permitAll()
                                                 // SEC-2 FIX: 정확한 내부 콜백 경로만 허용 (와일드카드 제거)
                                                 .requestMatchers("/internal/callback/arrange").permitAll()
                                                 // ── 나머지는 인증 필요 ──
