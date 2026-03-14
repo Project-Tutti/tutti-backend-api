@@ -135,12 +135,12 @@ spring:
 jwt:
   secret: ${JWT_SECRET}
 
-# SEC-3: prod에서 Swagger UI 비활성화
+# Swagger UI — 전시 기간 동안 활성화
 springdoc:
   api-docs:
-    enabled: false
+    enabled: true
   swagger-ui:
-    enabled: false
+    enabled: true
 
 # SEC-4: prod에서 콜백 시크릿 필수
 ai:
