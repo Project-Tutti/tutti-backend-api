@@ -8,18 +8,15 @@ import com.tutti.server.domain.user.entity.Profile;
 import com.tutti.server.domain.user.repository.ProfileRepository;
 import com.tutti.server.global.error.BusinessException;
 import com.tutti.server.global.error.ErrorCode;
+import com.tutti.server.infra.storage.SupabaseStorageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.List;
 import java.util.UUID;
 
@@ -68,6 +65,7 @@ public class ProjectService {
     private final VersionMappingRepository mappingRepository;
     private final ProfileRepository profileRepository;
     private final ArrangementService arrangementService;
+    private final SupabaseStorageService storageService;
 
     // ══════════════════════════════════════
     // 3.1 프로젝트 생성
@@ -263,12 +261,13 @@ public class ProjectService {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         }
 
-        Path filePath = Paths.get(version.getResultXmlPath());
-        if (!Files.exists(filePath)) {
+        Resource resource = storageService.downloadAsResource(
+                SupabaseStorageService.BUCKET_RESULTS, version.getResultXmlPath());
+        if (resource == null) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         }
 
-        return new FileSystemResource(filePath.toFile());
+        return resource;
     }
 
     // ══════════════════════════════════════
@@ -304,19 +303,20 @@ public class ProjectService {
             throw new BusinessException(ErrorCode.PROCESSING_NOT_COMPLETE);
         }
 
-        // 4. 도메인 메서드로 파일 경로 조회 (DB v3.0 개선)
+        // 4. 도메인 메서드로 파일 경로 조회
         String resultPath = version.getResultPathByType(type);
         if (resultPath == null) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         }
 
-        // 5. 파일 존재 확인 → Resource 반환
-        Path filePath = Paths.get(resultPath);
-        if (!Files.exists(filePath)) {
+        // 5. Supabase Storage에서 다운로드
+        Resource resource = storageService.downloadAsResource(
+                SupabaseStorageService.BUCKET_RESULTS, resultPath);
+        if (resource == null) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         }
 
-        return new FileSystemResource(filePath.toFile());
+        return resource;
     }
 
     // ══════════════════════════════════════
@@ -513,21 +513,24 @@ public class ProjectService {
     }
 
     /**
-     * MIDI 파일을 로컬 디스크에 저장합니다.
-     * 경로: /tmp/uploads/midi/{userId}/{UUID}_{원본파일명}
+     * MIDI 파일을 Supabase Storage에 업로드합니다.
+     * 경로: {userId}/{UUID}_{원본파일명}
      * UUID 접두어로 파일명 충돌을 방지합니다.
-     * 
-     * 주의: /tmp는 Pod 재시작 시 초기화됩니다.
-     * 추후 Supabase Storage로 마이그레이션 예정입니다.
+     *
+     * @return Supabase Storage 내 경로 (bucket 제외)
      */
     private String saveMidiFile(UUID userId, MultipartFile file) {
         try {
-            Path uploadDir = Paths.get("/tmp", "uploads", "midi", userId.toString());
-            Files.createDirectories(uploadDir);
             String filename = UUID.randomUUID() + "_" + file.getOriginalFilename();
-            Path filePath = uploadDir.resolve(filename);
-            file.transferTo(filePath.toFile());
-            return filePath.toString();
+            String storagePath = userId.toString() + "/" + filename;
+
+            storageService.upload(
+                    SupabaseStorageService.BUCKET_MIDI,
+                    storagePath,
+                    file.getBytes(),
+                    "audio/midi");
+
+            return storagePath;
         } catch (IOException e) {
             log.error("MIDI 파일 저장 실패", e);
             throw new BusinessException(ErrorCode.INTERNAL_ERROR);

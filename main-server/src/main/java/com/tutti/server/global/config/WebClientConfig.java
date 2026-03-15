@@ -14,36 +14,107 @@ import reactor.netty.http.client.HttpClient;
 import java.time.Duration;
 
 /**
- * AI 서버 통신용 WebClient Bean 설정.
- * ERR-3 FIX: 응답 타임아웃과 연결 타임아웃을 실제 적용합니다.
+ * 외부 서비스 통신용 WebClient Bean 설정.
+ *
+ * <h3>등록되는 Bean 3개</h3>
+ * <ol>
+ * <li>{@code aiWebClient} — AI 편곡 서버 (외부 GPU 서버, Cloudflare Tunnel 경유)</li>
+ * <li>{@code supabaseWebClient} — Supabase Storage REST API (파일 저장/조회)</li>
+ * <li>{@code converterWebClient} — MIDI↔MusicXML 변환 서비스 (같은 K8s 클러스터)</li>
+ * </ol>
  */
 @Configuration
 public class WebClientConfig {
+
+        // ── AI Server ──
 
         @Value("${ai.server.base-url}")
         private String aiServerBaseUrl;
 
         @Value("${ai.server.timeout:30000}")
-        private int timeout;
+        private int aiTimeout;
 
+        // ── Supabase Storage ──
+
+        @Value("${supabase.storage.url}")
+        private String supabaseUrl;
+
+        @Value("${supabase.storage.key}")
+        private String supabaseKey;
+
+        // ── Converter Service ──
+
+        @Value("${converter.server.base-url:http://converter-service:8000}")
+        private String converterBaseUrl;
+
+        @Value("${converter.server.timeout:60000}")
+        private int converterTimeout;
+
+        /**
+         * AI 편곡 서버 통신용 WebClient.
+         * 대용량 파일 전송을 위해 버퍼 크기 16MB로 확장.
+         */
         @Bean
         public WebClient aiWebClient() {
-                // 대용량 파일 전송을 위해 버퍼 크기 확장 (16MB)
                 ExchangeStrategies strategies = ExchangeStrategies.builder()
                                 .codecs(configurer -> configurer
                                                 .defaultCodecs()
                                                 .maxInMemorySize(16 * 1024 * 1024))
                                 .build();
 
-                // ERR-3 FIX: 실제 타임아웃 적용
                 HttpClient httpClient = HttpClient.create()
-                                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, timeout)
-                                .responseTimeout(Duration.ofMillis(timeout));
+                                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, aiTimeout)
+                                .responseTimeout(Duration.ofMillis(aiTimeout));
 
                 return WebClient.builder()
                                 .baseUrl(aiServerBaseUrl)
                                 .clientConnector(new ReactorClientHttpConnector(httpClient))
                                 .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                                .exchangeStrategies(strategies)
+                                .build();
+        }
+
+        /**
+         * Supabase Storage REST API 통신용 WebClient.
+         * apikey 헤더와 Authorization Bearer 헤더를 자동 설정.
+         * 파일 업/다운로드를 위해 버퍼 크기 16MB.
+         */
+        @Bean
+        public WebClient supabaseWebClient() {
+                ExchangeStrategies strategies = ExchangeStrategies.builder()
+                                .codecs(configurer -> configurer
+                                                .defaultCodecs()
+                                                .maxInMemorySize(16 * 1024 * 1024))
+                                .build();
+
+                return WebClient.builder()
+                                .baseUrl(supabaseUrl)
+                                .defaultHeader("apikey", supabaseKey)
+                                .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + supabaseKey)
+                                .exchangeStrategies(strategies)
+                                .build();
+        }
+
+        /**
+         * MIDI↔MusicXML 변환 서비스 통신용 WebClient.
+         * 같은 K8s 클러스터 내부 DNS로 통신 (http://converter-service:8000).
+         * 변환 작업은 시간이 걸릴 수 있으므로 타임아웃 60초.
+         */
+        @Bean
+        public WebClient converterWebClient() {
+                ExchangeStrategies strategies = ExchangeStrategies.builder()
+                                .codecs(configurer -> configurer
+                                                .defaultCodecs()
+                                                .maxInMemorySize(16 * 1024 * 1024))
+                                .build();
+
+                HttpClient httpClient = HttpClient.create()
+                                .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, converterTimeout)
+                                .responseTimeout(Duration.ofMillis(converterTimeout));
+
+                return WebClient.builder()
+                                .baseUrl(converterBaseUrl)
+                                .clientConnector(new ReactorClientHttpConnector(httpClient))
                                 .exchangeStrategies(strategies)
                                 .build();
         }

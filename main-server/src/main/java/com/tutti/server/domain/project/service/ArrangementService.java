@@ -9,6 +9,7 @@ import com.tutti.server.domain.project.repository.VersionMappingRepository;
 import com.tutti.server.global.common.ApiResponse;
 import com.tutti.server.infra.ai.dto.AiArrangeRequest;
 import com.tutti.server.infra.ai.dto.AiCallbackPayload;
+import com.tutti.server.infra.storage.SupabaseStorageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -75,6 +76,7 @@ public class ArrangementService {
     private final WebClient aiWebClient;
     private final ProjectVersionRepository versionRepository;
     private final VersionMappingRepository mappingRepository;
+    private final SupabaseStorageService storageService;
 
     // @Value: application.yml의 설정값을 주입받습니다.
     // ${...} 안의 값은 환경변수나 설정 파일에서 자동으로 치환됩니다.
@@ -169,11 +171,14 @@ public class ArrangementService {
                         .build())
                 .toList();
 
-        // 2. AI 서버 요청 DTO 구성
+        // 2. AI 서버 요청 DTO 구성 — Supabase Storage URL로 MIDI 파일 위치 전달
+        String midiUrl = storageService.getPublicUrl(
+                SupabaseStorageService.BUCKET_MIDI, project.getMidiFilePath());
+
         AiArrangeRequest request = AiArrangeRequest.builder()
                 .projectId(project.getId())
                 .versionId(version.getId())
-                .midiFilePath(project.getMidiFilePath())
+                .midiFilePath(midiUrl)
                 .mappings(mappingDataList)
                 .callbackUrl(callbackBaseUrl + "/internal/callback/arrange")
                 .build();
