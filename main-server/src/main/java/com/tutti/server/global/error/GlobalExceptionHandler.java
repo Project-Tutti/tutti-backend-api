@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.util.Map;
@@ -127,6 +128,28 @@ public class GlobalExceptionHandler {
                 return ResponseEntity
                                 .status(HttpStatus.BAD_REQUEST)
                                 .body(ApiResponse.error(ErrorCode.FILE_TOO_LARGE.getMessage(), errorResult));
+        }
+
+        /**
+         * @RequestParam/@PathVariable의 @Email, @Min 등 검증 실패.
+         *                              Spring 6.1+에서 ConstraintViolationException 대신 이
+         *                              예외를 던집니다.
+         */
+        @ExceptionHandler(HandlerMethodValidationException.class)
+        public ResponseEntity<ApiResponse<Map<String, String>>> handleMethodValidation(
+                        HandlerMethodValidationException e) {
+                String detail = e.getAllErrors().stream()
+                                .map(error -> error.getDefaultMessage())
+                                .reduce((a, b) -> a + ", " + b)
+                                .orElse("유효성 검사 실패");
+
+                Map<String, String> errorResult = Map.of(
+                                "errorCode", ErrorCode.INVALID_INPUT.name(),
+                                "details", detail);
+
+                return ResponseEntity
+                                .status(HttpStatus.BAD_REQUEST)
+                                .body(ApiResponse.error(ErrorCode.INVALID_INPUT.getMessage(), errorResult));
         }
 
         /**
