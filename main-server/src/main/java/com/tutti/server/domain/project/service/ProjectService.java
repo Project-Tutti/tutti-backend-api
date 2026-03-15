@@ -514,12 +514,15 @@ public class ProjectService {
 
     /**
      * MIDI 파일을 로컬 디스크에 저장합니다.
-     * 경로: uploads/midi/{userId}/{UUID}_{원본파일명}
+     * 경로: /tmp/uploads/midi/{userId}/{UUID}_{원본파일명}
      * UUID 접두어로 파일명 충돌을 방지합니다.
+     * 
+     * 주의: /tmp는 Pod 재시작 시 초기화됩니다.
+     * 추후 Supabase Storage로 마이그레이션 예정입니다.
      */
     private String saveMidiFile(UUID userId, MultipartFile file) {
         try {
-            Path uploadDir = Paths.get("uploads", "midi", userId.toString());
+            Path uploadDir = Paths.get("/tmp", "uploads", "midi", userId.toString());
             Files.createDirectories(uploadDir);
             String filename = UUID.randomUUID() + "_" + file.getOriginalFilename();
             Path filePath = uploadDir.resolve(filename);
