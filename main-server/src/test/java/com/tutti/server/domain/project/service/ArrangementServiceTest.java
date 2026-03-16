@@ -4,6 +4,8 @@ import com.tutti.server.domain.project.entity.ProjectVersion;
 import com.tutti.server.domain.project.repository.ProjectVersionRepository;
 import com.tutti.server.domain.project.repository.VersionMappingRepository;
 import com.tutti.server.infra.ai.dto.AiCallbackPayload;
+import com.tutti.server.infra.converter.ConverterService;
+import com.tutti.server.infra.storage.SupabaseStorageService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -34,6 +36,16 @@ class ArrangementServiceTest {
     private ProjectVersionRepository versionRepository;
     @Mock
     private VersionMappingRepository mappingRepository;
+    @Mock
+    private SupabaseStorageService storageService;
+    @Mock
+    private ConverterService converterService;
+    @Mock
+    private WebClient.RequestHeadersUriSpec requestHeadersUriSpec;
+    @Mock
+    private WebClient.RequestHeadersSpec requestHeadersSpec;
+    @Mock
+    private WebClient.ResponseSpec responseSpec;
 
     // ══════════════════════════════════════
     // AI 콜백 처리
@@ -48,7 +60,7 @@ class ArrangementServiceTest {
         void 정상_콜백_완료() {
             // given
             AiCallbackPayload payload = createPayload(1L, 1L, "complete", 100,
-                    "/result.mid", "/result.xml", "/result.pdf");
+                    "/result.mid", null, null);
 
             ProjectVersion version = ProjectVersion.builder()
                     .name("Ver 1")
@@ -57,14 +69,32 @@ class ArrangementServiceTest {
             ReflectionTestUtils.setField(version, "id", 1L);
             given(versionRepository.findById(1L)).willReturn(Optional.of(version));
 
+            // AI 서버에서 MIDI 다운로드 mock
+            byte[] midiBytes = new byte[] { 0x4D, 0x54, 0x68, 0x64 }; // MIDI header
+            given(aiWebClient.get()).willReturn(requestHeadersUriSpec);
+            given(requestHeadersUriSpec.uri("/result.mid")).willReturn(requestHeadersSpec);
+            given(requestHeadersSpec.retrieve()).willReturn(responseSpec);
+            given(responseSpec.bodyToMono(byte[].class)).willReturn(reactor.core.publisher.Mono.just(midiBytes));
+
+            // Supabase download mock (업로드 후 다시 다운로드)
+            given(storageService.download(SupabaseStorageService.BUCKET_RESULTS, "1/1/result.mid"))
+                    .willReturn(midiBytes);
+
+            // Converter mock
+            byte[] xmlBytes = "<score>".getBytes();
+            byte[] pdfBytes = new byte[] { 0x25, 0x50, 0x44, 0x46 }; // PDF header
+            given(converterService.midiToMusicXml(midiBytes)).willReturn(xmlBytes);
+            given(converterService.midiToPdf(midiBytes)).willReturn(pdfBytes);
+
             // when
             arrangementService.handleCallback(payload);
 
             // then
             assertThat(version.getStatus()).isEqualTo(ProjectVersion.VersionStatus.COMPLETE);
             assertThat(version.getProgress()).isEqualTo(100);
-            assertThat(version.getResultMidiPath()).isEqualTo("/result.mid");
-            assertThat(version.getResultXmlPath()).isEqualTo("/result.xml");
+            assertThat(version.getResultMidiPath()).isEqualTo("1/1/result.mid");
+            assertThat(version.getResultXmlPath()).isEqualTo("1/1/result.musicxml");
+            assertThat(version.getResultPdfPath()).isEqualTo("1/1/result.pdf");
             verify(versionRepository).save(version);
         }
 
