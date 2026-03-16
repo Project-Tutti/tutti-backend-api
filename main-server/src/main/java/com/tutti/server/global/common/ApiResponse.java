@@ -22,7 +22,7 @@ import java.util.Collections;
 public class ApiResponse<T> {
 
     @JsonProperty("isSuccess")
-    private final boolean isSuccess;
+    private final boolean success;
     private final String message;
     private final T result;
 
