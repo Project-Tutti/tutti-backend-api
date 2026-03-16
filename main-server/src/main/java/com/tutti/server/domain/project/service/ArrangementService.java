@@ -9,6 +9,7 @@ import com.tutti.server.domain.project.repository.VersionMappingRepository;
 import com.tutti.server.global.common.ApiResponse;
 import com.tutti.server.infra.ai.dto.AiArrangeRequest;
 import com.tutti.server.infra.ai.dto.AiCallbackPayload;
+import com.tutti.server.infra.converter.ConverterService;
 import com.tutti.server.infra.storage.SupabaseStorageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -77,6 +78,7 @@ public class ArrangementService {
     private final ProjectVersionRepository versionRepository;
     private final VersionMappingRepository mappingRepository;
     private final SupabaseStorageService storageService;
+    private final ConverterService converterService;
 
     // @Value: application.yml의 설정값을 주입받습니다.
     // ${...} 안의 값은 환경변수나 설정 파일에서 자동으로 치환됩니다.
@@ -262,20 +264,54 @@ public class ArrangementService {
         }
         final ProjectVersion.VersionStatus status = parsedStatus;
 
-        // 2. DB 업데이트 — 상태, 진행률, 결과 파일 경로
+        // 2. 완료 시 — MIDI 결과물을 Supabase에 업로드하고 XML/PDF로 변환
+        String midiStoragePath = null;
+        String xmlStoragePath = null;
+        String pdfStoragePath = null;
+
+        if (status == ProjectVersion.VersionStatus.COMPLETE && payload.getResultMidiPath() != null) {
+            try {
+                midiStoragePath = processCompletedArrangement(
+                        payload.getProjectId(), payload.getVersionId(),
+                        payload.getResultMidiPath());
+
+                // MIDI 다운로드 후 XML/PDF 변환 시도
+                byte[] midiBytes = storageService.download(
+                        SupabaseStorageService.BUCKET_RESULTS, midiStoragePath);
+
+                if (midiBytes != null) {
+                    xmlStoragePath = convertAndUpload(midiBytes,
+                            payload.getProjectId(), payload.getVersionId(),
+                            "result.musicxml", "application/xml",
+                            converterService::midiToMusicXml);
+
+                    pdfStoragePath = convertAndUpload(midiBytes,
+                            payload.getProjectId(), payload.getVersionId(),
+                            "result.pdf", "application/pdf",
+                            converterService::midiToPdf);
+                }
+            } catch (Exception e) {
+                log.error("결과물 처리 중 오류 (MIDI는 저장됨): {}", e.getMessage());
+            }
+        }
+
+        // 3. DB 업데이트 — 상태, 진행률, 결과 파일 경로
+        final String finalMidi = midiStoragePath;
+        final String finalXml = xmlStoragePath;
+        final String finalPdf = pdfStoragePath;
+
         versionRepository.findById(payload.getVersionId()).ifPresent(version -> {
             version.updateStatus(status);
             if (payload.getProgress() != null) {
                 version.updateProgress(payload.getProgress());
             }
-            version.updateResultPaths(
-                    payload.getResultMidiPath(),
-                    payload.getResultXmlPath(),
-                    payload.getResultPdfPath());
+            if (finalMidi != null) {
+                version.updateResultPaths(finalMidi, finalXml, finalPdf);
+            }
             versionRepository.save(version);
         });
 
-        // 3. SSE 이벤트 전송 — 연결된 모든 클라이언트에게 실시간 진행률 알림
+        // 4. SSE 이벤트 전송
         sendSseEvent(payload.getVersionId(), ProgressEvent.builder()
                 .projectId(payload.getProjectId())
                 .versionId(payload.getVersionId())
@@ -283,10 +319,78 @@ public class ArrangementService {
                 .progress(payload.getProgress() != null ? payload.getProgress() : 0)
                 .build());
 
-        // 4. 완료 또는 실패 시 SSE 연결 종료
+        // 5. 완료 또는 실패 시 SSE 연결 종료
         if (status == ProjectVersion.VersionStatus.COMPLETE
                 || status == ProjectVersion.VersionStatus.FAILED) {
             completeSseEmitters(payload.getVersionId());
+        }
+    }
+
+    /**
+     * AI 서버가 전달한 MIDI 결과물을 Supabase Storage에 업로드합니다.
+     * AI 서버의 resultMidiPath로부터 MIDI 데이터를 가져와 Storage에 저장합니다.
+     *
+     * @return Supabase Storage 내 경로
+     */
+    private String processCompletedArrangement(Long projectId, Long versionId, String aiResultPath) {
+        // AI 서버가 전달한 경로에서 MIDI 데이터 다운로드
+        byte[] midiBytes = downloadFromAiServer(aiResultPath);
+        if (midiBytes == null) {
+            log.error("AI 결과 MIDI 다운로드 실패: {}", aiResultPath);
+            return null;
+        }
+
+        // Supabase Storage에 업로드
+        String storagePath = projectId + "/" + versionId + "/result.mid";
+        storageService.upload(
+                SupabaseStorageService.BUCKET_RESULTS,
+                storagePath, midiBytes, "audio/midi");
+
+        log.info("MIDI 결과물 Supabase 업로드 완료: {}", storagePath);
+        return storagePath;
+    }
+
+    /**
+     * MIDI 데이터를 변환하고 Supabase Storage에 업로드합니다.
+     * 변환 실패 시 null을 반환합니다 (비치명적 실패).
+     */
+    private String convertAndUpload(byte[] midiBytes, Long projectId, Long versionId,
+            String filename, String contentType,
+            java.util.function.Function<byte[], byte[]> converter) {
+        try {
+            byte[] converted = converter.apply(midiBytes);
+            if (converted == null) {
+                log.warn("변환 실패 (null 반환): {}", filename);
+                return null;
+            }
+
+            String storagePath = projectId + "/" + versionId + "/" + filename;
+            storageService.upload(
+                    SupabaseStorageService.BUCKET_RESULTS,
+                    storagePath, converted, contentType);
+
+            log.info("변환 + 업로드 완료: {}", storagePath);
+            return storagePath;
+        } catch (Exception e) {
+            log.error("변환/업로드 실패 ({}): {}", filename, e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * AI 서버로부터 결과 파일을 다운로드합니다.
+     * AI 서버가 URL을 전달하는 경우 WebClient로 다운로드합니다.
+     */
+    private byte[] downloadFromAiServer(String path) {
+        try {
+            return aiWebClient.get()
+                    .uri(path)
+                    .retrieve()
+                    .bodyToMono(byte[].class)
+                    .block();
+        } catch (Exception e) {
+            log.error("AI 서버 파일 다운로드 실패: {}", e.getMessage());
+            return null;
         }
     }
 
