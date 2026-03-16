@@ -9,6 +9,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.util.Map;
@@ -150,6 +151,26 @@ public class GlobalExceptionHandler {
                 return ResponseEntity
                                 .status(HttpStatus.BAD_REQUEST)
                                 .body(ApiResponse.error(ErrorCode.INVALID_INPUT.getMessage(), errorResult));
+        }
+
+        /**
+         * HTTP 메서드 불일치 — 예: POST 전용 엔드포인트에 GET 요청.
+         * 405 Method Not Allowed를 반환하며, 지원하는 메서드를 안내합니다.
+         */
+        @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+        public ResponseEntity<ApiResponse<Map<String, String>>> handleMethodNotAllowed(
+                        HttpRequestMethodNotSupportedException e) {
+                String supported = e.getSupportedHttpMethods() != null
+                                ? e.getSupportedHttpMethods().toString()
+                                : "확인 불가";
+
+                Map<String, String> errorResult = Map.of(
+                                "errorCode", "METHOD_NOT_ALLOWED",
+                                "details", "지원하지 않는 HTTP 메서드입니다. 지원: " + supported);
+
+                return ResponseEntity
+                                .status(HttpStatus.METHOD_NOT_ALLOWED)
+                                .body(ApiResponse.error("지원하지 않는 HTTP 메서드입니다.", errorResult));
         }
 
         /**
