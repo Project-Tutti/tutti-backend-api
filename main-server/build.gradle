@@ -43,6 +43,9 @@ dependencies {
     // ── API Documentation ──
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.6'
 
+    // ── Google OAuth ──
+    implementation 'com.google.api-client:google-api-client:2.7.2'
+
     // ── Utilities ──
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'

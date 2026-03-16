@@ -15,6 +15,8 @@ import com.tutti.server.global.auth.jwt.JwtProperties;
 import com.tutti.server.global.auth.jwt.JwtTokenProvider;
 import com.tutti.server.global.error.BusinessException;
 import com.tutti.server.global.error.ErrorCode;
+import com.tutti.server.infra.oauth.GoogleOAuthService;
+import com.tutti.server.infra.oauth.GoogleUserInfo;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -367,18 +369,35 @@ public class AuthService {
         }
     }
 
-    // ── OAuth 헬퍼 — 아직 미구현 (프론트 Supabase SDK 연동 시 구현 예정) ──
+    // ── OAuth 헬퍼 ──
 
+    private final GoogleOAuthService googleOAuthService;
+
+    /**
+     * OAuth 인가 코드(또는 ID Token)로 사용자 이메일을 교환합니다.
+     * Google의 경우 프론트엔드에서 전달받은 ID Token을 검증하여 이메일을 추출합니다.
+     */
     private String exchangeCodeForEmail(Profile.Provider provider, String code) {
-        // TODO: GoogleOAuthClient.exchangeCode(code) → Google userinfo API 호출
-        throw new BusinessException(ErrorCode.OAUTH_SERVER_ERROR);
+        if (provider == Profile.Provider.GOOGLE) {
+            GoogleUserInfo userInfo = googleOAuthService.verifyIdToken(code);
+            return userInfo.getEmail();
+        }
+        throw new BusinessException(ErrorCode.UNSUPPORTED_PROVIDER);
     }
 
     private String extractNameFromProvider(Profile.Provider provider, String code) {
+        if (provider == Profile.Provider.GOOGLE) {
+            GoogleUserInfo userInfo = googleOAuthService.verifyIdToken(code);
+            return userInfo.getName();
+        }
         return "User";
     }
 
     private String extractAvatarFromProvider(Profile.Provider provider, String code) {
+        if (provider == Profile.Provider.GOOGLE) {
+            GoogleUserInfo userInfo = googleOAuthService.verifyIdToken(code);
+            return userInfo.getAvatarUrl();
+        }
         return null;
     }
 }

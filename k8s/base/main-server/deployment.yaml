@@ -88,6 +88,12 @@ spec:
                 secretKeyRef:
                   name: tutti-secrets
                   key: ai-callback-secret
+            # ── Google OAuth ──
+            - name: GOOGLE_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: tutti-secrets
+                  key: google-client-id
           resources:
             requests:
               cpu: "250m"       # e2-medium(2 vCPU)에 적합한 요청
