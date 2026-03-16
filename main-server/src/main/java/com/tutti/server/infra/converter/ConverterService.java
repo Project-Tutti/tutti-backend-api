@@ -8,7 +8,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 /**
- * MIDI ↔ MusicXML 변환 서비스 클라이언트.
+ * MIDI ↔ MusicXML ↔ PDF 변환 서비스 클라이언트.
  *
  * <h3>아키텍처 위치</h3>
  * 
@@ -35,22 +35,8 @@ public class ConverterService {
      * @return MusicXML 바이트 배열, 실패 시 null
      */
     public byte[] midiToMusicXml(byte[] midiBytes) {
-        try {
-            return converterWebClient.post()
-                    .uri("/api/v1/convert/midi-to-xml")
-                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                    .bodyValue(midiBytes)
-                    .retrieve()
-                    .bodyToMono(byte[].class)
-                    .block();
-        } catch (WebClientResponseException e) {
-            log.error("MIDI→MusicXML 변환 실패: status={}, body={}",
-                    e.getStatusCode(), e.getResponseBodyAsString());
-            return null;
-        } catch (Exception e) {
-            log.warn("Converter 서비스 연결 불가 (아직 미배포?): {}", e.getMessage());
-            return null;
-        }
+        return convert("/api/v1/convert/midi-to-xml",
+                MediaType.APPLICATION_OCTET_STREAM, midiBytes, "MIDI→MusicXML");
     }
 
     /**
@@ -60,22 +46,30 @@ public class ConverterService {
      * @return MIDI 바이트 배열, 실패 시 null
      */
     public byte[] musicXmlToMidi(byte[] xmlBytes) {
-        try {
-            return converterWebClient.post()
-                    .uri("/api/v1/convert/xml-to-midi")
-                    .contentType(MediaType.APPLICATION_XML)
-                    .bodyValue(xmlBytes)
-                    .retrieve()
-                    .bodyToMono(byte[].class)
-                    .block();
-        } catch (WebClientResponseException e) {
-            log.error("MusicXML→MIDI 변환 실패: status={}, body={}",
-                    e.getStatusCode(), e.getResponseBodyAsString());
-            return null;
-        } catch (Exception e) {
-            log.warn("Converter 서비스 연결 불가 (아직 미배포?): {}", e.getMessage());
-            return null;
-        }
+        return convert("/api/v1/convert/xml-to-midi",
+                MediaType.APPLICATION_XML, xmlBytes, "MusicXML→MIDI");
+    }
+
+    /**
+     * MIDI 파일을 PDF 악보로 변환합니다.
+     *
+     * @param midiBytes MIDI 파일 바이트 배열
+     * @return PDF 바이트 배열, 실패 시 null
+     */
+    public byte[] midiToPdf(byte[] midiBytes) {
+        return convert("/api/v1/convert/midi-to-pdf",
+                MediaType.APPLICATION_OCTET_STREAM, midiBytes, "MIDI→PDF");
+    }
+
+    /**
+     * MusicXML 파일을 PDF 악보로 변환합니다.
+     *
+     * @param xmlBytes MusicXML 파일 바이트 배열
+     * @return PDF 바이트 배열, 실패 시 null
+     */
+    public byte[] musicXmlToPdf(byte[] xmlBytes) {
+        return convert("/api/v1/convert/xml-to-pdf",
+                MediaType.APPLICATION_XML, xmlBytes, "MusicXML→PDF");
     }
 
     /**
@@ -93,6 +87,27 @@ public class ConverterService {
             return true;
         } catch (Exception e) {
             return false;
+        }
+    }
+
+    // ── 내부 공통 메서드 ──
+
+    private byte[] convert(String uri, MediaType contentType, byte[] data, String label) {
+        try {
+            return converterWebClient.post()
+                    .uri(uri)
+                    .contentType(contentType)
+                    .bodyValue(data)
+                    .retrieve()
+                    .bodyToMono(byte[].class)
+                    .block();
+        } catch (WebClientResponseException e) {
+            log.error("{} 변환 실패: status={}, body={}",
+                    label, e.getStatusCode(), e.getResponseBodyAsString());
+            return null;
+        } catch (Exception e) {
+            log.warn("Converter 서비스 연결 불가 (아직 미배포?): {}", e.getMessage());
+            return null;
         }
     }
 }
