@@ -23,7 +23,7 @@ import lombok.*;
 public class Instrument {
 
     @Id
-    @Column(name = "midi_program")
+    @Column(name = "midi_program", columnDefinition = "smallint")
     private Integer midiProgram;
 
     @Column(nullable = false, unique = true, length = 100)
