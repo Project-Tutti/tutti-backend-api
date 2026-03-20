@@ -1,5 +1,6 @@
 package com.tutti.server.domain.project.service;
 
+import com.tutti.server.domain.instrument.repository.InstrumentRepository;
 import com.tutti.server.domain.project.dto.request.MappingItem;
 import com.tutti.server.domain.project.dto.request.ProjectRenameRequest;
 import com.tutti.server.domain.project.dto.request.RegenerateRequest;
@@ -51,6 +52,8 @@ class ProjectServiceTest {
     private VersionMappingRepository mappingRepository;
     @Mock
     private ProfileRepository profileRepository;
+    @Mock
+    private InstrumentRepository instrumentRepository;
     @Mock
     private ArrangementService arrangementService;
 
@@ -173,6 +176,9 @@ class ProjectServiceTest {
 
             RegenerateRequest request = createRegenerateRequest(null,
                     List.of(new MappingItem(0, 1)));
+
+            // mock: targetInstrumentId=1 이 생성 가능한 악기
+            given(instrumentRepository.existsByMidiProgramAndGeneratableTrue(1)).willReturn(true);
 
             // when
             var result = projectService.regenerate(TestFixtures.USER_ID, 1L, request);

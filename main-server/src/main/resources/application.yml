@@ -61,10 +61,13 @@ springdoc:
     tags-sorter: alpha
     operations-sorter: method
 
-# ── AI Server ──
+# ── AI Server (KEDA 0-Scaling) ──
+# base-url: KEDA 인터셉터 프록시 주소 (k8s 환경에서는 AI_SERVER_URL 환경변수로 주입)
+# host-header: KEDA가 실제 AI 서버로 라우팅하기 위한 Host 헤더 값
 ai:
   server:
     base-url: ${AI_SERVER_URL:http://localhost:8000}
+    host-header: ${AI_SERVER_HOST:ai-server.tutti.svc.cluster.local}
     timeout: 30000 # 초기 요청 타임아웃 (ms)
     callback-base-url: ${CALLBACK_BASE_URL:http://localhost:8080}
     callback-secret: ${AI_CALLBACK_SECRET:default-callback-secret}

@@ -1,5 +1,6 @@
 package com.tutti.server.domain.project.service;
 
+import com.tutti.server.domain.instrument.repository.InstrumentRepository;
 import com.tutti.server.domain.project.dto.request.*;
 import com.tutti.server.domain.project.dto.response.*;
 import com.tutti.server.domain.project.entity.*;
@@ -64,6 +65,7 @@ public class ProjectService {
     private final ProjectTrackRepository trackRepository;
     private final VersionMappingRepository mappingRepository;
     private final ProfileRepository profileRepository;
+    private final InstrumentRepository instrumentRepository;
     private final ArrangementService arrangementService;
     private final SupabaseStorageService storageService;
 
@@ -480,6 +482,14 @@ public class ProjectService {
     private void saveMappings(ProjectVersion version, List<MappingItem> mappingItems) {
         if (mappingItems == null || mappingItems.isEmpty()) {
             return;
+        }
+        // 대상 악기가 AI 생성 가능한지 검증
+        for (MappingItem item : mappingItems) {
+            if (!instrumentRepository.existsByMidiProgramAndGeneratableTrue(
+                    item.getTargetInstrumentId())) {
+                throw new BusinessException(ErrorCode.UNSUPPORTED_INSTRUMENT,
+                        "지원하지 않는 악기 ID: " + item.getTargetInstrumentId());
+            }
         }
         for (MappingItem item : mappingItems) {
             VersionMapping mapping = VersionMapping.builder()

@@ -75,10 +75,11 @@ spec:
                 secretKeyRef:
                   name: tutti-secrets
                   key: jwt-secret
-            # ── AI Server (Cloudflare Tunnel 경유) ──
-            # 학교 GPU 서버에 설치된 cloudflared를 통해 Cloudflare Tunnel로 연결
+            # ── AI Server (KEDA HTTP Addon 0-Scaling) ──
+            # KEDA 인터셉터 프록시로 요청 → 프록시가 AI 파드 스케일업 후 전달
+            # Host 헤더는 WebClientConfig에서 ai-server.tutti.svc.cluster.local로 설정됨
             - name: AI_SERVER_URL
-              value: "https://REDACTED"
+              value: "http://keda-http-addon-interceptor-proxy.keda.svc.cluster.local:8080"
             # ── Callback URL (Cloudflare 경유 외부 접근 가능 URL) ──
             - name: CALLBACK_BASE_URL
               value: "https://REDACTED"
