@@ -68,7 +68,7 @@ ai:
   server:
     base-url: ${AI_SERVER_URL:http://localhost:8000}
     host-header: ${AI_SERVER_HOST:ai-server.tutti.svc.cluster.local}
-    timeout: 30000 # 초기 요청 타임아웃 (ms)
+    timeout: 420000 # GPU 콜드 스타트(노드 프로비저닝 3~5분) 고려 (ms)
     callback-base-url: ${CALLBACK_BASE_URL:http://localhost:8080}
     callback-secret: ${AI_CALLBACK_SECRET:default-callback-secret}
 
