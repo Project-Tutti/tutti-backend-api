@@ -61,7 +61,8 @@ public class SecurityConfig {
                                                                 "/api/auth/login",
                                                                 "/api/auth/social",
                                                                 "/api/auth/refresh",
-                                                                "/api/auth/check-email")
+                                                                "/api/auth/check-email",
+                                                                "/api/instruments/**")
                                                 .permitAll()
                                                 // ── Actuator Health ──
                                                 .requestMatchers("/actuator/health").permitAll()

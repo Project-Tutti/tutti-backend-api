@@ -16,6 +16,7 @@ public class AiArrangeRequest {
     private String midiFilePath;
     private List<MappingData> mappings;
     private String callbackUrl;
+    private String callbackSecret;
 
     @Getter
     @Builder

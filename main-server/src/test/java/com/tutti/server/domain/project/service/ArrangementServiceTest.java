@@ -40,27 +40,22 @@ class ArrangementServiceTest {
     private SupabaseStorageService storageService;
     @Mock
     private ConverterService converterService;
-    @Mock
-    private WebClient.RequestHeadersUriSpec requestHeadersUriSpec;
-    @Mock
-    private WebClient.RequestHeadersSpec requestHeadersSpec;
-    @Mock
-    private WebClient.ResponseSpec responseSpec;
 
     // ══════════════════════════════════════
-    // AI 콜백 처리
+    // handleCallbackWithFile() — Multipart 완료 콜백
     // ══════════════════════════════════════
 
     @Nested
-    @DisplayName("handleCallback()")
-    class HandleCallback {
+    @DisplayName("handleCallbackWithFile()")
+    class HandleCallbackWithFile {
 
         @Test
-        @DisplayName("COMPLETE 상태 — 버전 상태 업데이트 + 결과 경로 저장")
+        @DisplayName("COMPLETE — MIDI 업로드 + XML/PDF 변환 + DB 업데이트")
         void 정상_콜백_완료() {
             // given
-            AiCallbackPayload payload = createPayload(1L, 1L, "complete", 100,
-                    "/result.mid", null, null);
+            AiCallbackPayload payload = createPayload(1L, 1L, "complete", 100);
+
+            byte[] midiBytes = new byte[] { 0x4D, 0x54, 0x68, 0x64 }; // MIDI header
 
             ProjectVersion version = ProjectVersion.builder()
                     .name("Ver 1")
@@ -69,17 +64,6 @@ class ArrangementServiceTest {
             ReflectionTestUtils.setField(version, "id", 1L);
             given(versionRepository.findById(1L)).willReturn(Optional.of(version));
 
-            // AI 서버에서 MIDI 다운로드 mock
-            byte[] midiBytes = new byte[] { 0x4D, 0x54, 0x68, 0x64 }; // MIDI header
-            given(aiWebClient.get()).willReturn(requestHeadersUriSpec);
-            given(requestHeadersUriSpec.uri("/result.mid")).willReturn(requestHeadersSpec);
-            given(requestHeadersSpec.retrieve()).willReturn(responseSpec);
-            given(responseSpec.bodyToMono(byte[].class)).willReturn(reactor.core.publisher.Mono.just(midiBytes));
-
-            // Supabase download mock (업로드 후 다시 다운로드)
-            given(storageService.download(SupabaseStorageService.BUCKET_RESULTS, "1/1/result.mid"))
-                    .willReturn(midiBytes);
-
             // Converter mock
             byte[] xmlBytes = "<score>".getBytes();
             byte[] pdfBytes = new byte[] { 0x25, 0x50, 0x44, 0x46 }; // PDF header
@@ -87,7 +71,7 @@ class ArrangementServiceTest {
             given(converterService.midiToPdf(midiBytes)).willReturn(pdfBytes);
 
             // when
-            arrangementService.handleCallback(payload);
+            arrangementService.handleCallbackWithFile(payload, midiBytes);
 
             // then
             assertThat(version.getStatus()).isEqualTo(ProjectVersion.VersionStatus.COMPLETE);
@@ -96,14 +80,27 @@ class ArrangementServiceTest {
             assertThat(version.getResultXmlPath()).isEqualTo("1/1/result.musicxml");
             assertThat(version.getResultPdfPath()).isEqualTo("1/1/result.pdf");
             verify(versionRepository).save(version);
+
+            // Supabase 업로드 검증
+            verify(storageService).upload(
+                    SupabaseStorageService.BUCKET_RESULTS,
+                    "1/1/result.mid", midiBytes, "audio/midi");
         }
+    }
+
+    // ══════════════════════════════════════
+    // handleCallback() — JSON 진행률/실패 콜백
+    // ══════════════════════════════════════
+
+    @Nested
+    @DisplayName("handleCallback()")
+    class HandleCallback {
 
         @Test
         @DisplayName("FAILED 상태 — 실패로 업데이트")
         void 콜백_실패상태() {
             // given
-            AiCallbackPayload payload = createPayload(1L, 1L, "failed", 30,
-                    null, null, null);
+            AiCallbackPayload payload = createPayload(1L, 1L, "failed", 30);
 
             ProjectVersion version = ProjectVersion.builder()
                     .name("Ver 1")
@@ -123,8 +120,7 @@ class ArrangementServiceTest {
         @DisplayName("알 수 없는 상태값 — FAILED로 폴백")
         void 알수없는_상태_폴백() {
             // given
-            AiCallbackPayload payload = createPayload(1L, 1L, "unknown_status", 0,
-                    null, null, null);
+            AiCallbackPayload payload = createPayload(1L, 1L, "unknown_status", 0);
 
             ProjectVersion version = ProjectVersion.builder()
                     .name("Ver 1")
@@ -218,16 +214,13 @@ class ArrangementServiceTest {
 
     // ── Helper ──
 
-    private AiCallbackPayload createPayload(Long projectId, Long versionId, String status,
-            Integer progress, String midi, String xml, String pdf) {
+    private AiCallbackPayload createPayload(Long projectId, Long versionId,
+            String status, Integer progress) {
         AiCallbackPayload payload = new AiCallbackPayload();
         ReflectionTestUtils.setField(payload, "projectId", projectId);
         ReflectionTestUtils.setField(payload, "versionId", versionId);
         ReflectionTestUtils.setField(payload, "status", status);
         ReflectionTestUtils.setField(payload, "progress", progress);
-        ReflectionTestUtils.setField(payload, "resultMidiPath", midi);
-        ReflectionTestUtils.setField(payload, "resultXmlPath", xml);
-        ReflectionTestUtils.setField(payload, "resultPdfPath", pdf);
         return payload;
     }
 }
