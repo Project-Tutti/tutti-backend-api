@@ -141,7 +141,7 @@ public class ProjectController {
         public ResponseEntity<ApiResponse<ProjectCreateResponse>> createProject(
                         Authentication authentication,
                         @RequestPart("file") MultipartFile file,
-                        @Parameter(description = "프로젝트 생성 데이터 (JSON)", schema = @Schema(implementation = ProjectCreateRequest.class)) @Valid @RequestPart("request") ProjectCreateRequest request) {
+                        @Parameter(description = "프로젝트 생성 데이터 (JSON)", content = @io.swagger.v3.oas.annotations.media.Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ProjectCreateRequest.class))) @Valid @RequestPart("request") ProjectCreateRequest request) {
                 UUID userId = AuthUtils.extractUserId(authentication);
                 ProjectCreateResponse result = projectService.createProject(userId, file, request);
                 return ResponseEntity
