@@ -10,6 +10,8 @@ import com.tutti.server.domain.project.service.ProjectService;
 import com.tutti.server.global.auth.AuthUtils;
 import com.tutti.server.global.common.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -139,7 +141,7 @@ public class ProjectController {
         public ResponseEntity<ApiResponse<ProjectCreateResponse>> createProject(
                         Authentication authentication,
                         @RequestPart("file") MultipartFile file,
-                        @Valid @RequestPart("request") ProjectCreateRequest request) {
+                        @Parameter(description = "프로젝트 생성 데이터 (JSON)", schema = @Schema(implementation = ProjectCreateRequest.class)) @Valid @RequestPart("request") ProjectCreateRequest request) {
                 UUID userId = AuthUtils.extractUserId(authentication);
                 ProjectCreateResponse result = projectService.createProject(userId, file, request);
                 return ResponseEntity
