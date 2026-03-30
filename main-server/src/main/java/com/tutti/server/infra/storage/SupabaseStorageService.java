@@ -105,8 +105,9 @@ public class SupabaseStorageService {
      * @return 완전한 Signed URL (Supabase 도메인 포함)
      */
     public String createSignedUrl(String bucket, String path, int expiresIn) {
+        String uri = "/storage/v1/object/sign/" + bucket + "/" + path;
         String response = supabaseWebClient.post()
-                .uri("/storage/v1/object/sign/{bucket}/{path}", bucket, path)
+                .uri(uri)
                 .contentType(MediaType.APPLICATION_JSON)
                 .bodyValue("{\"expiresIn\":" + expiresIn + "}")
                 .retrieve()
