@@ -89,4 +89,39 @@ public class SupabaseStorageService {
     public String getPublicUrl(String bucket, String path) {
         return supabaseUrl + "/storage/v1/object/public/" + bucket + "/" + path;
     }
+
+    /**
+     * Supabase Storage의 Signed URL을 생성합니다.
+     * Private 버킷의 파일에 대해 시간 제한이 있는 임시 다운로드 URL을 발급합니다.
+     *
+     * <p>
+     * service_role key를 사용하므로 RLS를 우회하며,
+     * 생성된 URL은 지정된 만료 시간이 지나면 자동으로 무효화됩니다.
+     * </p>
+     *
+     * @param bucket    Supabase Storage 버킷 이름
+     * @param path      버킷 내 파일 경로
+     * @param expiresIn URL 유효 시간 (초 단위)
+     * @return 완전한 Signed URL (Supabase 도메인 포함)
+     */
+    public String createSignedUrl(String bucket, String path, int expiresIn) {
+        String response = supabaseWebClient.post()
+                .uri("/storage/v1/object/sign/{bucket}/{path}", bucket, path)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"expiresIn\":" + expiresIn + "}")
+                .retrieve()
+                .bodyToMono(String.class)
+                .doOnError(err -> log.error("Supabase Signed URL 생성 실패: {}/{}, error={}",
+                        bucket, path, err.getMessage()))
+                .block();
+
+        // 응답: { "signedURL": "/storage/v1/object/sign/bucket/path?token=..." }
+        // signedURL은 상대 경로이므로 Supabase URL을 앞에 붙여야 함
+        if (response != null && response.contains("signedURL")) {
+            String signedPath = response.split("\"signedURL\"\\s*:\\s*\"")[1].split("\"")[0];
+            return supabaseUrl + signedPath;
+        }
+
+        throw new RuntimeException("Supabase Signed URL 생성에 실패했습니다.");
+    }
 }

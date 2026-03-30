@@ -258,35 +258,25 @@ public class ProjectController {
         // ── 3.7 파일 다운로드 ──
 
         /**
-         * 편곡 결과 파일 다운로드.
+         * 편곡 결과 파일 다운로드 링크 발급.
          *
          * <p>
-         * Content-Disposition: {@code attachment}로 설정하여
-         * 브라우저가 파일 저장 다이얼로그를 표시합니다.
+         * Supabase Storage의 Signed URL을 생성하여 반환합니다.
+         * 클라이언트는 반환된 downloadLink로 Supabase에서 직접 다운로드합니다.
          * </p>
          *
          * @param type "midi", "xml", "pdf" 중 하나 (쿼리 파라미터)
          */
-        @Operation(summary = "파일 다운로드", description = "완성된 편곡 결과물을 다양한 형식으로 다운로드합니다.")
+        @Operation(summary = "파일 다운로드", description = "완성된 편곡 결과물의 다운로드 링크를 발급합니다.")
         @GetMapping("/{projectId}/{versionId}/download")
-        public ResponseEntity<Resource> downloadFile(
+        public ResponseEntity<ApiResponse<DownloadLinkResponse>> downloadFile(
                         Authentication authentication,
                         @PathVariable Long projectId,
                         @PathVariable Long versionId,
                         @RequestParam String type) {
                 UUID userId = AuthUtils.extractUserId(authentication);
-                Resource resource = projectService.downloadFile(userId, projectId, versionId, type);
-
-                DownloadFileType fileType = DownloadFileType.fromString(type);
-                String filename = "result" + (fileType != null ? fileType.getExtension() : ".mid");
-
-                return ResponseEntity.ok()
-                                .contentType(MediaType.parseMediaType(
-                                                fileType != null ? fileType.getContentType()
-                                                                : "application/octet-stream"))
-                                .header(HttpHeaders.CONTENT_DISPOSITION,
-                                                "attachment; filename=\"" + filename + "\"")
-                                .body(resource);
+                DownloadLinkResponse result = projectService.downloadFile(userId, projectId, versionId, type);
+                return ResponseEntity.ok(ApiResponse.success("다운로드 링크를 생성하였습니다.", result));
         }
 
         // ── 3.8 프로젝트 이름 수정 ──

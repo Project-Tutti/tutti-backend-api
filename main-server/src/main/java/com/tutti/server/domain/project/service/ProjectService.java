@@ -277,11 +277,12 @@ public class ProjectService {
     // ══════════════════════════════════════
 
     /**
-     * 편곡 결과 파일을 다운로드합니다 (MIDI, XML, PDF).
+     * 편곡 결과 파일의 다운로드 링크(Signed URL)를 생성합니다.
      *
      * <p>
-     * {@code version.getResultPathByType(type)} 도메인 메서드를 사용하여
-     * 파일 타입에 따른 경로를 조회합니다. DB v3.0 이전의 확장자 치환 로직을 대체합니다.
+     * Supabase Storage의 Signed URL을 사용하여 클라이언트가 직접 다운로드할 수 있는
+     * 시간 제한 링크를 발급합니다. 백엔드가 파일을 중계하지 않으므로
+     * 서버 메모리/대역폭 사용이 줄어듭니다.
      * </p>
      *
      * @param type "midi", "xml", "pdf" 중 하나
@@ -289,7 +290,7 @@ public class ProjectService {
      * @throws BusinessException PROCESSING_NOT_COMPLETE — 편곡 미완료
      * @throws BusinessException RESOURCE_NOT_FOUND — 파일 미존재
      */
-    public Resource downloadFile(UUID userId, Long projectId, Long versionId, String type) {
+    public DownloadLinkResponse downloadFile(UUID userId, Long projectId, Long versionId, String type) {
         // 1. 파일 타입 유효성 검증
         DownloadFileType fileType = DownloadFileType.fromString(type);
         if (fileType == null) {
@@ -311,14 +312,13 @@ public class ProjectService {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
         }
 
-        // 5. Supabase Storage에서 다운로드
-        Resource resource = storageService.downloadAsResource(
-                SupabaseStorageService.BUCKET_RESULTS, resultPath);
-        if (resource == null) {
-            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND);
-        }
+        // 5. Supabase Signed URL 생성 (유효 시간: 5분)
+        String signedUrl = storageService.createSignedUrl(
+                SupabaseStorageService.BUCKET_RESULTS, resultPath, 300);
 
-        return resource;
+        return DownloadLinkResponse.builder()
+                .downloadLink(signedUrl)
+                .build();
     }
 
     // ══════════════════════════════════════
