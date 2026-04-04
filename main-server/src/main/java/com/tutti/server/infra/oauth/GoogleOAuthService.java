@@ -1,7 +1,9 @@
 package com.tutti.server.infra.oauth;
 
+import com.google.api.client.googleapis.auth.oauth2.GoogleAuthorizationCodeTokenRequest;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
+import com.google.api.client.googleapis.auth.oauth2.GoogleTokenResponse;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.gson.GsonFactory;
 import com.tutti.server.global.error.BusinessException;
@@ -40,13 +42,66 @@ import java.util.Collections;
 @Service
 public class GoogleOAuthService {
 
+    private final String clientId;
+    private final String clientSecret;
+    private final String defaultRedirectUri;
     private final GoogleIdTokenVerifier verifier;
 
-    public GoogleOAuthService(@Value("${google.oauth.client-id}") String clientId) {
+    public GoogleOAuthService(
+            @Value("${google.oauth.client-id}") String clientId,
+            @Value("${google.oauth.client-secret}") String clientSecret,
+            @Value("${google.oauth.redirect-uri:}") String defaultRedirectUri) {
+        this.clientId = clientId;
+        this.clientSecret = clientSecret;
+        this.defaultRedirectUri = defaultRedirectUri;
         this.verifier = new GoogleIdTokenVerifier.Builder(
                 new NetHttpTransport(), GsonFactory.getDefaultInstance())
                 .setAudience(Collections.singletonList(clientId))
                 .build();
+    }
+
+    /**
+     * 프론트엔드에서 전달받은 Authorization Code를 Google Token Endpoint와 통신하여
+     * 유효한 ID Token으로 교환한 후 사용자 정보를 추출합니다.
+     *
+     * @param authCode 프론트엔드에서 전달받은 Authorization Code
+     * @param requestedRedirectUri 프론트엔드에서 강제로 지정한 리다이렉트 주소 (없으면 환경변수 기본값 사용)
+     * @return 검증된 사용자 정보 (이메일, 이름, 아바타 URL)
+     * @throws BusinessException OAUTH_SERVER_ERROR — 통신 또는 검증 실패
+     */
+    public GoogleUserInfo exchangeCodeForUserInfo(String authCode, String requestedRedirectUri) {
+        try {
+            // 전달받은 URI가 있으면 우선 사용하고, 없으면 서버 환경변수 값을 사용합니다.
+            String actualRedirectUri = (requestedRedirectUri != null && !requestedRedirectUri.isBlank()) 
+                    ? requestedRedirectUri 
+                    : defaultRedirectUri;
+
+            // 1. 인가 코드를 ID/Access 토큰으로 교환
+            GoogleTokenResponse tokenResponse = new GoogleAuthorizationCodeTokenRequest(
+                    new NetHttpTransport(),
+                    GsonFactory.getDefaultInstance(),
+                    "https://oauth2.googleapis.com/token",
+                    clientId,
+                    clientSecret,
+                    authCode,
+                    actualRedirectUri)
+                    .execute();
+
+            String idTokenString = tokenResponse.getIdToken();
+            if (idTokenString == null) {
+                log.warn("Google 토큰 교환 실패: 응답에 ID Token이 존재하지 않습니다.");
+                throw new BusinessException(ErrorCode.OAUTH_SERVER_ERROR);
+            }
+
+            // 2. 받은 ID 토큰 검증 및 정보 추출
+            return verifyIdToken(idTokenString);
+
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Google Authorization Code 교환 중 오류 발생: {}", e.getMessage());
+            throw new BusinessException(ErrorCode.OAUTH_SERVER_ERROR);
+        }
     }
 
     /**

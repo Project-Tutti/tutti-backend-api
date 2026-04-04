@@ -95,6 +95,11 @@ spec:
                 secretKeyRef:
                   name: tutti-secrets
                   key: google-client-id
+            - name: GOOGLE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: tutti-secrets
+                  key: google-client-secret
           resources:
             requests:
               cpu: "250m"       # e2-medium(2 vCPU)에 적합한 요청

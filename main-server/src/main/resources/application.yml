@@ -88,6 +88,8 @@ converter:
 google:
   oauth:
     client-id: ${GOOGLE_CLIENT_ID:your-google-client-id}
+    client-secret: ${GOOGLE_CLIENT_SECRET:your-google-client-secret}
+    redirect-uri: ${GOOGLE_REDIRECT_URI}
 
 # ── Logging ──
 logging:

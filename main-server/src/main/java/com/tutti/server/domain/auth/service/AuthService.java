@@ -208,10 +208,18 @@ public class AuthService {
         Profile.Provider provider = parseProvider(request.getProvider());
 
         // 2. OAuth 인가 코드로 사용자 정보(이메일, 이름, 아바타) 교환
-        // TODO: 실제 GoogleOAuthClient.exchangeCode() 구현 필요
-        String email = exchangeCodeForEmail(provider, request.getCode());
-        String name = extractNameFromProvider(provider, request.getCode());
-        String avatarUrl = extractAvatarFromProvider(provider, request.getCode());
+        String email;
+        String name;
+        String avatarUrl;
+
+        if (provider == Profile.Provider.GOOGLE) {
+            GoogleUserInfo userInfo = googleOAuthService.exchangeCodeForUserInfo(request.getCode(), request.getRedirectUri());
+            email = userInfo.getEmail();
+            name = userInfo.getName();
+            avatarUrl = userInfo.getAvatarUrl();
+        } else {
+            throw new BusinessException(ErrorCode.UNSUPPORTED_PROVIDER);
+        }
 
         // 3. 기존 활성 유저 조회 → 없으면 신규 프로필 생성
         Profile profile = profileRepository.findByEmail(email)
@@ -373,31 +381,5 @@ public class AuthService {
 
     private final GoogleOAuthService googleOAuthService;
 
-    /**
-     * OAuth 인가 코드(또는 ID Token)로 사용자 이메일을 교환합니다.
-     * Google의 경우 프론트엔드에서 전달받은 ID Token을 검증하여 이메일을 추출합니다.
-     */
-    private String exchangeCodeForEmail(Profile.Provider provider, String code) {
-        if (provider == Profile.Provider.GOOGLE) {
-            GoogleUserInfo userInfo = googleOAuthService.verifyIdToken(code);
-            return userInfo.getEmail();
-        }
-        throw new BusinessException(ErrorCode.UNSUPPORTED_PROVIDER);
-    }
 
-    private String extractNameFromProvider(Profile.Provider provider, String code) {
-        if (provider == Profile.Provider.GOOGLE) {
-            GoogleUserInfo userInfo = googleOAuthService.verifyIdToken(code);
-            return userInfo.getName();
-        }
-        return "User";
-    }
-
-    private String extractAvatarFromProvider(Profile.Provider provider, String code) {
-        if (provider == Profile.Provider.GOOGLE) {
-            GoogleUserInfo userInfo = googleOAuthService.verifyIdToken(code);
-            return userInfo.getAvatarUrl();
-        }
-        return null;
-    }
 }

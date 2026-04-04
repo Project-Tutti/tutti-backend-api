@@ -8,7 +8,6 @@ import com.tutti.server.domain.project.dto.request.VersionRenameRequest;
 import com.tutti.server.domain.project.dto.response.ProjectDetailResponse;
 import com.tutti.server.domain.project.dto.response.TrackInfoResponse;
 import com.tutti.server.domain.project.entity.Project;
-import com.tutti.server.domain.project.entity.ProjectTrack;
 import com.tutti.server.domain.project.entity.ProjectVersion;
 import com.tutti.server.domain.project.repository.*;
 import com.tutti.server.domain.user.entity.Profile;
@@ -33,7 +32,6 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("ProjectService 단위 테스트")

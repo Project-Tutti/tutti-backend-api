@@ -50,3 +50,4 @@ logs/
 
 # ── Test ──
 main-server/build/reports/
+tmp-npm-cache/
