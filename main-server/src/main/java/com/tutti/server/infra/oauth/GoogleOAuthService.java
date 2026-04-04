@@ -44,16 +44,13 @@ public class GoogleOAuthService {
 
     private final String clientId;
     private final String clientSecret;
-    private final String defaultRedirectUri;
     private final GoogleIdTokenVerifier verifier;
 
     public GoogleOAuthService(
             @Value("${google.oauth.client-id}") String clientId,
-            @Value("${google.oauth.client-secret}") String clientSecret,
-            @Value("${google.oauth.redirect-uri:}") String defaultRedirectUri) {
+            @Value("${google.oauth.client-secret}") String clientSecret) {
         this.clientId = clientId;
         this.clientSecret = clientSecret;
-        this.defaultRedirectUri = defaultRedirectUri;
         this.verifier = new GoogleIdTokenVerifier.Builder(
                 new NetHttpTransport(), GsonFactory.getDefaultInstance())
                 .setAudience(Collections.singletonList(clientId))
@@ -71,11 +68,6 @@ public class GoogleOAuthService {
      */
     public GoogleUserInfo exchangeCodeForUserInfo(String authCode, String requestedRedirectUri) {
         try {
-            // 전달받은 URI가 있으면 우선 사용하고, 없으면 서버 환경변수 값을 사용합니다.
-            String actualRedirectUri = (requestedRedirectUri != null && !requestedRedirectUri.isBlank()) 
-                    ? requestedRedirectUri 
-                    : defaultRedirectUri;
-
             // 1. 인가 코드를 ID/Access 토큰으로 교환
             GoogleTokenResponse tokenResponse = new GoogleAuthorizationCodeTokenRequest(
                     new NetHttpTransport(),
@@ -84,7 +76,7 @@ public class GoogleOAuthService {
                     clientId,
                     clientSecret,
                     authCode,
-                    actualRedirectUri)
+                    requestedRedirectUri)
                     .execute();
 
             String idTokenString = tokenResponse.getIdToken();

@@ -19,6 +19,7 @@ public class SocialLoginRequest {
     @NotBlank(message = "인증 코드는 필수입니다.")
     private String code;
 
-    @Schema(description = "인가 코드를 받을 때 사용된 리다이렉트 URI (프론트엔드 환경 호환을 위해 반드시 전송 권장)", example = "http://localhost:3000/auth/callback")
+    @Schema(description = "인가 코드를 받을 때 사용된 리다이렉트 URI (프론트엔드 환경 호환을 위해 필수)", example = "http://localhost:3000/auth/callback")
+    @NotBlank(message = "리다이렉트 URI는 필수입니다.")
     private String redirectUri;
 }
