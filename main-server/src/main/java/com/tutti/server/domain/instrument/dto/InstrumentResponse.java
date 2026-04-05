@@ -12,15 +12,17 @@ public class InstrumentResponse {
 
     private Integer midiProgram;
     private String name;
-    private String category;
-    private boolean generatable;
+    private Integer categoryId;
+    private Integer minNote;
+    private Integer maxNote;
 
     public static InstrumentResponse from(Instrument instrument) {
         return InstrumentResponse.builder()
                 .midiProgram(instrument.getMidiProgram())
                 .name(instrument.getName())
-                .category(instrument.getCategory())
-                .generatable(instrument.isGeneratable())
+                .categoryId(instrument.getCategory().getRepresentativeProgram())
+                .minNote(instrument.getMinNote())
+                .maxNote(instrument.getMaxNote())
                 .build();
     }
 }

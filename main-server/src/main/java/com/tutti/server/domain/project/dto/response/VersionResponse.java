@@ -19,6 +19,8 @@ public class VersionResponse {
     private String status;
     private List<MappingItem> mappings;
     private Integer instrumentId;
+    private Integer minNote;
+    private Integer maxNote;
     private LocalDateTime createdAt;
 
     public static VersionResponse from(ProjectVersion version) {
@@ -32,6 +34,8 @@ public class VersionResponse {
                 .status(version.getStatus().name().toLowerCase())
                 .mappings(mappingItems)
                 .instrumentId(version.getInstrumentId())
+                .minNote(version.getMinNote())
+                .maxNote(version.getMaxNote())
                 .createdAt(version.getCreatedAt())
                 .build();
     }

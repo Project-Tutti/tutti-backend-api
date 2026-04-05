@@ -1,6 +1,6 @@
 package com.tutti.server.domain.project.service;
 
-import com.tutti.server.domain.instrument.repository.InstrumentRepository;
+import com.tutti.server.domain.instrument.repository.InstrumentCategoryRepository;
 import com.tutti.server.domain.project.dto.request.MappingItem;
 import com.tutti.server.domain.project.dto.request.ProjectRenameRequest;
 import com.tutti.server.domain.project.dto.request.RegenerateRequest;
@@ -14,6 +14,7 @@ import com.tutti.server.domain.user.entity.Profile;
 import com.tutti.server.domain.user.repository.ProfileRepository;
 import com.tutti.server.global.error.BusinessException;
 import com.tutti.server.global.error.ErrorCode;
+import com.tutti.server.infra.storage.SupabaseStorageService;
 import com.tutti.server.support.TestFixtures;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -51,9 +52,11 @@ class ProjectServiceTest {
     @Mock
     private ProfileRepository profileRepository;
     @Mock
-    private InstrumentRepository instrumentRepository;
+    private InstrumentCategoryRepository categoryRepository;
     @Mock
     private ArrangementService arrangementService;
+    @Mock
+    private SupabaseStorageService storageService;
 
     private Profile owner;
     private Project project;
@@ -172,11 +175,18 @@ class ProjectServiceTest {
                         return v;
                     });
 
-            RegenerateRequest request = createRegenerateRequest(null,
-                    List.of(new MappingItem(0, 1)));
+            // Fallback: 직전 버전 없음 (처음 재생성)
+            given(versionRepository.findTopByProjectIdAndDeletedAtIsNullOrderByCreatedAtDesc(1L))
+                    .willReturn(Optional.empty());
 
-            // mock: targetInstrumentId=1 이 생성 가능한 악기
-            given(instrumentRepository.existsByMidiProgramAndGeneratableTrue(1)).willReturn(true);
+            // targetInstrumentId=40 (Solo String 카테고리)
+            RegenerateRequest request = createRegenerateRequest(null,
+                    List.of(new MappingItem(0, 40)),
+                    40, null, null);
+
+            // mock: targetInstrumentId=40이 생성 가능한 카테고리
+            given(categoryRepository.existsByRepresentativeProgramAndGeneratableTrue(40))
+                    .willReturn(true);
 
             // when
             var result = projectService.regenerate(TestFixtures.USER_ID, 1L, request);
@@ -359,10 +369,17 @@ class ProjectServiceTest {
 
     // ── DTO Helper ──
 
-    private RegenerateRequest createRegenerateRequest(String versionName, List<MappingItem> mappings) {
+    private RegenerateRequest createRegenerateRequest(String versionName,
+                                                      List<MappingItem> mappings,
+                                                      Integer instrumentId,
+                                                      Integer minNote,
+                                                      Integer maxNote) {
         RegenerateRequest req = new RegenerateRequest();
         ReflectionTestUtils.setField(req, "versionName", versionName);
         ReflectionTestUtils.setField(req, "mappings", mappings);
+        ReflectionTestUtils.setField(req, "instrumentId", instrumentId);
+        ReflectionTestUtils.setField(req, "minNote", minNote);
+        ReflectionTestUtils.setField(req, "maxNote", maxNote);
         return req;
     }
 }

@@ -11,6 +11,8 @@ import com.tutti.server.infra.ai.dto.AiArrangeRequest;
 import com.tutti.server.infra.ai.dto.AiCallbackPayload;
 import com.tutti.server.infra.converter.ConverterService;
 import com.tutti.server.infra.storage.SupabaseStorageService;
+import com.tutti.server.domain.instrument.entity.InstrumentCategory;
+import com.tutti.server.domain.instrument.repository.InstrumentCategoryRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -79,6 +81,7 @@ public class ArrangementService {
     private final VersionMappingRepository mappingRepository;
     private final SupabaseStorageService storageService;
     private final ConverterService converterService;
+    private final InstrumentCategoryRepository categoryRepository;
 
     // @Value: application.yml의 설정값을 주입받습니다.
     // ${...} 안의 값은 환경변수나 설정 파일에서 자동으로 치환됩니다.
@@ -177,11 +180,18 @@ public class ArrangementService {
         String midiUrl = storageService.getPublicUrl(
                 SupabaseStorageService.BUCKET_MIDI, project.getMidiFilePath());
 
+        // 3. 카테고리 기반 modelType 결정
+        String modelType = resolveModelType(version.getInstrumentId());
+
         AiArrangeRequest request = AiArrangeRequest.builder()
                 .projectId(project.getId())
                 .versionId(version.getId())
                 .midiFilePath(midiUrl)
                 .mappings(mappingDataList)
+                .targetInstrumentId(version.getInstrumentId())
+                .minNote(version.getMinNote())
+                .maxNote(version.getMaxNote())
+                .modelType(modelType)
                 .callbackUrl(callbackBaseUrl + "/internal/callback/arrange")
                 .callbackSecret(callbackSecret)
                 .build();
@@ -511,5 +521,17 @@ public class ArrangementService {
             case COMPLETE -> "완료되었습니다.";
             case FAILED -> "처리에 실패했습니다.";
         };
+    }
+
+    /**
+     * 카테고리 representative_program을 AI 모델 타입 문자열로 변환합니다.
+     * 예: 40 → "solo_string", 61 → "brass"
+     */
+    private String resolveModelType(Integer instrumentId) {
+        if (instrumentId == null) return "default";
+        return categoryRepository.findById(instrumentId)
+                .map(InstrumentCategory::getName)
+                .map(name -> name.toLowerCase().replace(" ", "_"))
+                .orElse("default");
     }
 }

@@ -73,8 +73,16 @@ public class ProjectVersion extends BaseTimeEntity {
     @Builder.Default
     private VersionStatus status = VersionStatus.PENDING;
 
-    /** 이 버전에서 사용할 목표 악기 ID (instruments 테이블 참조). */
+    /** 이 버전에서 사용할 목표 카테고리의 representative_program (예: 40=Solo String). */
     private Integer instrumentId;
+
+    /** 생성 음역대 하한 — 사용자가 설정한 MIDI 노트 번호 (0~127). */
+    @Column(name = "min_note")
+    private Integer minNote;
+
+    /** 생성 음역대 상한 — 사용자가 설정한 MIDI 노트 번호 (0~127). */
+    @Column(name = "max_note")
+    private Integer maxNote;
 
     /**
      * 편곡 진행률 (0~100%).
@@ -149,6 +157,16 @@ public class ProjectVersion extends BaseTimeEntity {
     /** 진행률 업데이트 — AI 서버의 SSE 콜백에 의해 호출됩니다. */
     public void updateProgress(int progress) {
         this.progress = progress;
+    }
+
+    /**
+     * 생성 설정 업데이트.
+     * 재생성 시 사용자가 명시한 값만 업데이트하고, null이면 기존 값을 유지합니다.
+     */
+    public void updateGenerationSettings(Integer instrumentId, Integer minNote, Integer maxNote) {
+        if (instrumentId != null) this.instrumentId = instrumentId;
+        if (minNote != null) this.minNote = minNote;
+        if (maxNote != null) this.maxNote = maxNote;
     }
 
     /**

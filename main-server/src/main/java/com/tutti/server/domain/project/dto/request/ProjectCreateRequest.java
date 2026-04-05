@@ -1,6 +1,8 @@
 package com.tutti.server.domain.project.dto.request;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
@@ -18,7 +20,18 @@ public class ProjectCreateRequest {
 
     private String versionName;
 
+    /** 생성 대상 카테고리의 representative_program (예: 40=Solo String). */
     private Integer instrumentId;
+
+    /** 생성 음역대 하한 (MIDI 0~127). null이면 악기 기본값 사용. */
+    @Min(value = 0, message = "minNote는 0 이상이어야 합니다.")
+    @Max(value = 127, message = "minNote는 127 이하여야 합니다.")
+    private Integer minNote;
+
+    /** 생성 음역대 상한 (MIDI 0~127). null이면 악기 기본값 사용. */
+    @Min(value = 0, message = "maxNote는 0 이상이어야 합니다.")
+    @Max(value = 127, message = "maxNote는 127 이하여야 합니다.")
+    private Integer maxNote;
 
     @Valid
     private List<TrackItem> tracks;

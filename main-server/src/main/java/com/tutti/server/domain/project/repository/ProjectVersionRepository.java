@@ -17,6 +17,9 @@ public interface ProjectVersionRepository extends JpaRepository<ProjectVersion, 
 
     long countByProjectIdAndDeletedAtIsNull(Long projectId);
 
+    /** 재생성 Fallback용 — 가장 최근 버전 조회 (Soft Delete 제외). */
+    Optional<ProjectVersion> findTopByProjectIdAndDeletedAtIsNullOrderByCreatedAtDesc(Long projectId);
+
     // N+1 방지: 버전 + 매핑 한번에 fetch join
     @Query("SELECT DISTINCT v FROM ProjectVersion v " +
             "LEFT JOIN FETCH v.mappings " +

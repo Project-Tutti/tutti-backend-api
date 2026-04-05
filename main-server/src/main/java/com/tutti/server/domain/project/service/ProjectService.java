@@ -1,6 +1,6 @@
 package com.tutti.server.domain.project.service;
 
-import com.tutti.server.domain.instrument.repository.InstrumentRepository;
+import com.tutti.server.domain.instrument.repository.InstrumentCategoryRepository;
 import com.tutti.server.domain.project.dto.request.*;
 import com.tutti.server.domain.project.dto.response.*;
 import com.tutti.server.domain.project.entity.*;
@@ -65,7 +65,7 @@ public class ProjectService {
     private final ProjectTrackRepository trackRepository;
     private final VersionMappingRepository mappingRepository;
     private final ProfileRepository profileRepository;
-    private final InstrumentRepository instrumentRepository;
+    private final InstrumentCategoryRepository categoryRepository;
     private final ArrangementService arrangementService;
     private final SupabaseStorageService storageService;
 
@@ -133,6 +133,8 @@ public class ProjectService {
                 .name(versionName)
                 .status(ProjectVersion.VersionStatus.PENDING)
                 .instrumentId(request.getInstrumentId())
+                .minNote(request.getMinNote())
+                .maxNote(request.getMaxNote())
                 .build();
         versionRepository.save(version);
 
@@ -219,10 +221,28 @@ public class ProjectService {
                 ? request.getVersionName()
                 : "Ver " + (versionCount + 1);
 
+        // Fallback: 직전 버전에서 생성 설정을 가져옴
+        ProjectVersion latestVersion = versionRepository
+                .findTopByProjectIdAndDeletedAtIsNullOrderByCreatedAtDesc(projectId)
+                .orElse(null);
+
+        Integer effectiveInstrumentId = request.getInstrumentId();
+        Integer effectiveMinNote = request.getMinNote();
+        Integer effectiveMaxNote = request.getMaxNote();
+
+        if (latestVersion != null) {
+            if (effectiveInstrumentId == null) effectiveInstrumentId = latestVersion.getInstrumentId();
+            if (effectiveMinNote == null) effectiveMinNote = latestVersion.getMinNote();
+            if (effectiveMaxNote == null) effectiveMaxNote = latestVersion.getMaxNote();
+        }
+
         ProjectVersion version = ProjectVersion.builder()
                 .project(project)
                 .name(versionName)
                 .status(ProjectVersion.VersionStatus.PENDING)
+                .instrumentId(effectiveInstrumentId)
+                .minNote(effectiveMinNote)
+                .maxNote(effectiveMaxNote)
                 .build();
         versionRepository.save(version);
 
@@ -483,12 +503,12 @@ public class ProjectService {
         if (mappingItems == null || mappingItems.isEmpty()) {
             return;
         }
-        // 대상 악기가 AI 생성 가능한지 검증
+        // 매핑 대상 카테고리가 생성 가능한지 검증
         for (MappingItem item : mappingItems) {
-            if (!instrumentRepository.existsByMidiProgramAndGeneratableTrue(
+            if (!categoryRepository.existsByRepresentativeProgramAndGeneratableTrue(
                     item.getTargetInstrumentId())) {
                 throw new BusinessException(ErrorCode.UNSUPPORTED_INSTRUMENT,
-                        "지원하지 않는 악기 ID: " + item.getTargetInstrumentId());
+                        "지원하지 않는 악기 카테고리: " + item.getTargetInstrumentId());
             }
         }
         for (MappingItem item : mappingItems) {
