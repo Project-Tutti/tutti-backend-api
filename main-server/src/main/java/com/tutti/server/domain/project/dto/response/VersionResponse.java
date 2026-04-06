@@ -21,6 +21,8 @@ public class VersionResponse {
     private Integer instrumentId;
     private Integer minNote;
     private Integer maxNote;
+    private String genre;
+    private Double temperature;
     private LocalDateTime createdAt;
 
     public static VersionResponse from(ProjectVersion version) {
@@ -36,7 +38,10 @@ public class VersionResponse {
                 .instrumentId(version.getInstrumentId())
                 .minNote(version.getMinNote())
                 .maxNote(version.getMaxNote())
+                .genre(version.getGenre() != null ? version.getGenre().name() : null)
+                .temperature(version.getTemperature())
                 .createdAt(version.getCreatedAt())
                 .build();
     }
 }
+

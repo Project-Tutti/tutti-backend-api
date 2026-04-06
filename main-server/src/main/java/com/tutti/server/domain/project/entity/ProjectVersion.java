@@ -84,6 +84,17 @@ public class ProjectVersion extends BaseTimeEntity {
     @Column(name = "max_note")
     private Integer maxNote;
 
+    /** 생성 장르 — AI 서버에서 GENRE_{genre} 토큰으로 변환. 기본값 CLASSICAL. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "genre", length = 20)
+    @Builder.Default
+    private Genre genre = Genre.CLASSICAL;
+
+    /** 생성 Temperature — 생성 다양성 제어 (0.1~2.0). 기본값 1.0. */
+    @Column(name = "temperature")
+    @Builder.Default
+    private Double temperature = 1.0;
+
     /**
      * 편곡 진행률 (0~100%).
      * AI 서버가 SSE로 진행률을 전송하면 이 값이 업데이트됩니다.
@@ -163,10 +174,13 @@ public class ProjectVersion extends BaseTimeEntity {
      * 생성 설정 업데이트.
      * 재생성 시 사용자가 명시한 값만 업데이트하고, null이면 기존 값을 유지합니다.
      */
-    public void updateGenerationSettings(Integer instrumentId, Integer minNote, Integer maxNote) {
+    public void updateGenerationSettings(Integer instrumentId, Integer minNote, Integer maxNote,
+                                          Genre genre, Double temperature) {
         if (instrumentId != null) this.instrumentId = instrumentId;
         if (minNote != null) this.minNote = minNote;
         if (maxNote != null) this.maxNote = maxNote;
+        if (genre != null) this.genre = genre;
+        if (temperature != null) this.temperature = temperature;
     }
 
     /**

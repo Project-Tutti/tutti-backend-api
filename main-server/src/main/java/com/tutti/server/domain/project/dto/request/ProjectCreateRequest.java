@@ -1,6 +1,8 @@
 package com.tutti.server.domain.project.dto.request;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -33,9 +35,18 @@ public class ProjectCreateRequest {
     @Max(value = 127, message = "maxNote는 127 이하여야 합니다.")
     private Integer maxNote;
 
+    /** 생성 장르. null이면 CLASSICAL 기본값 사용. */
+    private String genre;
+
+    /** 생성 temperature (0.1~2.0). null이면 1.0 기본값 사용. */
+    @DecimalMin(value = "0.1", message = "temperature는 0.1 이상이어야 합니다.")
+    @DecimalMax(value = "2.0", message = "temperature는 2.0 이하여야 합니다.")
+    private Double temperature;
+
     @Valid
     private List<TrackItem> tracks;
 
     @Valid
     private List<MappingItem> mappings;
 }
+

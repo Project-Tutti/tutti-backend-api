@@ -192,6 +192,8 @@ public class ArrangementService {
                 .minNote(version.getMinNote())
                 .maxNote(version.getMaxNote())
                 .modelType(modelType)
+                .genre(version.getGenre() != null ? version.getGenre().name() : "CLASSICAL")
+                .temperature(version.getTemperature() != null ? version.getTemperature() : 1.0)
                 .callbackUrl(callbackBaseUrl + "/internal/callback/arrange")
                 .callbackSecret(callbackSecret)
                 .build();

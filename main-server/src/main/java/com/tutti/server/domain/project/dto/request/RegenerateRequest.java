@@ -1,6 +1,8 @@
 package com.tutti.server.domain.project.dto.request;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotEmpty;
@@ -28,7 +30,16 @@ public class RegenerateRequest {
     @Max(value = 127, message = "maxNote는 127 이하여야 합니다.")
     private Integer maxNote;
 
+    /** 변경할 장르. null이면 직전 버전 값 유지. */
+    private String genre;
+
+    /** 변경할 temperature (0.1~2.0). null이면 직전 버전 값 유지. */
+    @DecimalMin(value = "0.1", message = "temperature는 0.1 이상이어야 합니다.")
+    @DecimalMax(value = "2.0", message = "temperature는 2.0 이하여야 합니다.")
+    private Double temperature;
+
     @NotEmpty(message = "매핑 정보는 필수입니다.")
     @Valid
     private List<MappingItem> mappings;
 }
+

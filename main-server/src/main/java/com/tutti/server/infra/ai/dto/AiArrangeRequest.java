@@ -15,6 +15,8 @@ import java.util.List;
  *   <li>{@code targetInstrumentId} — 생성 대상 카테고리의 representative_program</li>
  *   <li>{@code minNote}, {@code maxNote} — 생성 음역대 제한</li>
  *   <li>{@code modelType} — AI 모델 선택 힌트 (예: "solo_string", "brass")</li>
+ *   <li>{@code genre} — 생성 장르 (GENRE_{genre} 토큰으로 변환)</li>
+ *   <li>{@code temperature} — 생성 다양성 제어 (기본 1.0)</li>
  * </ul>
  * </p>
  */
@@ -40,6 +42,12 @@ public class AiArrangeRequest {
     /** AI 모델 선택 힌트 — 카테고리명 기반 (예: "solo_string"). */
     private String modelType;
 
+    /** 생성 장르 — AI 서버에서 GENRE_{genre} 토큰으로 변환. 기본값 "CLASSICAL". */
+    private String genre;
+
+    /** Temperature — 생성 다양성 제어 (기본 1.0). */
+    private Double temperature;
+
     private String callbackUrl;
     private String callbackSecret;
 
@@ -51,3 +59,4 @@ public class AiArrangeRequest {
         private Integer targetInstrumentId;
     }
 }
+

@@ -108,6 +108,9 @@ public class ProjectService {
         // 2. MIDI 파일 유효성 검증 — 형식과 크기 확인
         validateMidiFile(file);
 
+        // 2-1. 장르 유효성 검증
+        Genre genre = resolveGenre(request.getGenre());
+
         // 3. 파일을 서버 로컬에 저장하고 경로를 반환
         String midiFilePath = saveMidiFile(userId, file);
 
@@ -135,6 +138,8 @@ public class ProjectService {
                 .instrumentId(request.getInstrumentId())
                 .minNote(request.getMinNote())
                 .maxNote(request.getMaxNote())
+                .genre(genre)
+                .temperature(request.getTemperature() != null ? request.getTemperature() : 1.0)
                 .build();
         versionRepository.save(version);
 
@@ -215,6 +220,9 @@ public class ProjectService {
     public ProjectCreateResponse regenerate(UUID userId, Long projectId, RegenerateRequest request) {
         Project project = findProjectWithOwnership(userId, projectId);
 
+        // 장르 유효성 검증 (null이면 fallback에서 처리)
+        Genre genre = request.getGenre() != null ? resolveGenre(request.getGenre()) : null;
+
         // Soft Delete되지 않은 버전의 수를 기반으로 자동 이름 생성
         long versionCount = versionRepository.countByProjectIdAndDeletedAtIsNull(projectId);
         String versionName = (request.getVersionName() != null && !request.getVersionName().isBlank())
@@ -229,12 +237,20 @@ public class ProjectService {
         Integer effectiveInstrumentId = request.getInstrumentId();
         Integer effectiveMinNote = request.getMinNote();
         Integer effectiveMaxNote = request.getMaxNote();
+        Genre effectiveGenre = genre;
+        Double effectiveTemperature = request.getTemperature();
 
         if (latestVersion != null) {
             if (effectiveInstrumentId == null) effectiveInstrumentId = latestVersion.getInstrumentId();
             if (effectiveMinNote == null) effectiveMinNote = latestVersion.getMinNote();
             if (effectiveMaxNote == null) effectiveMaxNote = latestVersion.getMaxNote();
+            if (effectiveGenre == null) effectiveGenre = latestVersion.getGenre();
+            if (effectiveTemperature == null) effectiveTemperature = latestVersion.getTemperature();
         }
+
+        // fallback 후에도 null이면 기본값 사용
+        if (effectiveGenre == null) effectiveGenre = Genre.CLASSICAL;
+        if (effectiveTemperature == null) effectiveTemperature = 1.0;
 
         ProjectVersion version = ProjectVersion.builder()
                 .project(project)
@@ -243,6 +259,8 @@ public class ProjectService {
                 .instrumentId(effectiveInstrumentId)
                 .minNote(effectiveMinNote)
                 .maxNote(effectiveMaxNote)
+                .genre(effectiveGenre)
+                .temperature(effectiveTemperature)
                 .build();
         versionRepository.save(version);
 
@@ -564,6 +582,25 @@ public class ProjectService {
         } catch (IOException e) {
             log.error("MIDI 파일 저장 실패", e);
             throw new BusinessException(ErrorCode.INTERNAL_ERROR);
+        }
+    }
+
+    /**
+     * 장르 문자열을 Genre enum으로 변환합니다.
+     *
+     * <ul>
+     * <li>null 또는 빈 문자열 → {@link Genre#CLASSICAL} (기본값)</li>
+     * <li>유효하지 않은 값 → {@link ErrorCode#INVALID_GENRE} 예외</li>
+     * </ul>
+     */
+    private Genre resolveGenre(String genreStr) {
+        if (genreStr == null || genreStr.isBlank()) {
+            return Genre.CLASSICAL;
+        }
+        try {
+            return Genre.valueOf(genreStr.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new BusinessException(ErrorCode.INVALID_GENRE);
         }
     }
 }
