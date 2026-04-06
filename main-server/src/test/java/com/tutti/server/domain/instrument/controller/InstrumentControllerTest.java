@@ -30,7 +30,7 @@ class InstrumentControllerTest {
                 .maxNote(108)
                 .build();
 
-        given(instrumentService.getAllActiveInstruments()).willReturn(List.of(piano));
+        given(instrumentService.getAllInstruments()).willReturn(List.of(piano));
 
         ResponseEntity<?> response = controller.getAllInstruments();
 

@@ -32,9 +32,9 @@ public class InstrumentService {
                 .toList();
     }
 
-    /** 전체 활성 악기 목록 조회 (플랫 리스트). */
-    public List<InstrumentResponse> getAllActiveInstruments() {
-        return instrumentRepository.findByActiveTrueOrderByMidiProgram().stream()
+    /** 전체 악기 목록 조회 (is_active 무관, 플랫 리스트). */
+    public List<InstrumentResponse> getAllInstruments() {
+        return instrumentRepository.findAllOrderByMidiProgram().stream()
                 .map(InstrumentResponse::from)
                 .toList();
     }

@@ -22,7 +22,7 @@ import java.util.List;
  * <ul>
  * <li>{@code GET /api/instruments/categories} — 전체 카테고리 목록 (요약)</li>
  * <li>{@code GET /api/instruments/categories/generatable} — AI 생성 가능 카테고리 + 세부 악기 목록</li>
- * <li>{@code GET /api/instruments} — 전체 활성 악기 목록 (플랫)</li>
+ * <li>{@code GET /api/instruments} — 전체 악기 목록 (is_active 무관)</li>
  * <li>{@code GET /api/instruments/categories/{categoryId}} — 특정 카테고리 소속 악기 목록</li>
  * </ul>
  */
@@ -34,7 +34,7 @@ public class InstrumentController {
 
     private final InstrumentService instrumentService;
 
-    @Operation(summary = "전체 카테고리 목록", description = "13개 악기 카테고리 요약을 조회합니다.")
+    @Operation(summary = "전체 카테고리 목록", description = "14개 악기 카테고리 요약을 조회합니다.")
     @GetMapping("/categories")
     public ResponseEntity<ApiResponse<List<InstrumentCategoryResponse>>> getAllCategories() {
         return ResponseEntity.ok(ApiResponse.success("카테고리 목록을 조회하였습니다.",
@@ -49,10 +49,10 @@ public class InstrumentController {
                 instrumentService.getGeneratableCategories()));
     }
 
-    @Operation(summary = "전체 악기 목록", description = "활성 상태인 모든 악기를 조회합니다.")
+    @Operation(summary = "전체 악기 목록", description = "is_active 여부와 관계없이 모든 악기를 조회합니다.")
     @GetMapping
     public ResponseEntity<ApiResponse<InstrumentListResponse>> getAllInstruments() {
-        List<InstrumentResponse> instruments = instrumentService.getAllActiveInstruments();
+        List<InstrumentResponse> instruments = instrumentService.getAllInstruments();
         return ResponseEntity.ok(ApiResponse.success("악기 목록을 조회하였습니다.",
                 new InstrumentListResponse(instruments)));
     }
