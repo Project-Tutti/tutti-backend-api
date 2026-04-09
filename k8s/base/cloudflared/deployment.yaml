@@ -17,7 +17,7 @@ metadata:
     app: cloudflared
     tier: network
 spec:
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
       app: cloudflared
@@ -27,6 +27,16 @@ spec:
         app: cloudflared
         tier: network
     spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: app
+                    operator: In
+                    values:
+                      - cloudflared
+              topologyKey: "kubernetes.io/hostname"
       containers:
         - name: cloudflared
           # ⚠️ 고정 버전 사용 — latest는 예기치 않은 업데이트로 장애 유발 가능
