@@ -170,8 +170,8 @@ flowchart LR
   cloudflared tunnel create tutti-gpu
   ```
 - [ ] Cloudflare Dashboard에서 DNS 라우팅 설정
-  - `REDACTED` → `tutti-gke` tunnel
-  - `REDACTED` → `tutti-gpu` tunnel (내부용)
+  - `<your-api-domain>` → `tutti-gke` tunnel
+  - `<your-ai-domain>` → `tutti-gpu` tunnel (내부용, Cloudflare Access로 보호)
 
 ### Phase 4: GitHub 설정
 
@@ -254,7 +254,7 @@ gcloud iam service-accounts add-iam-policy-binding \
   ```
 - [ ] Cloudflare Tunnel 연결 확인
   ```bash
-  curl https://REDACTED/actuator/health
+  curl https://api.tutti.asia/actuator/health
   ```
 
 ### Phase 7: 학교 GPU 서버 설정

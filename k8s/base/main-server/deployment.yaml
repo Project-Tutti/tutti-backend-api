@@ -2,9 +2,9 @@
 # Tutti — K8s Main Server Deployment
 # ══════════════════════════════════════════════════════════════
 #
-# 💡 Cloudflare Tunnel 전환 후:
-#   • AI_SERVER_URL은 Cloudflare Tunnel 경유 URL
-#   • CALLBACK_BASE_URL은 Cloudflare를 통해 외부에서 접근 가능한 URL
+# 💡 온프레미스 AI 서버 마이그레이션 완료:
+#   • AI_SERVER_URL, AI_SERVER_HOST → tutti-secrets에서 주입 (주소 은닉)
+#   • CALLBACK_BASE_URL → tutti-secrets에서 주입
 #   • replicas: 1 (HPA가 스케일업 담당, Spot VM 비용 최소화)
 #
 apiVersion: apps/v1
@@ -75,14 +75,43 @@ spec:
                 secretKeyRef:
                   name: tutti-secrets
                   key: jwt-secret
-            # ── AI Server (KEDA HTTP Addon 0-Scaling) ──
-            # KEDA 인터셉터 프록시로 요청 → 프록시가 AI 파드 스케일업 후 전달
-            # Host 헤더는 WebClientConfig에서 ai-server.tutti.svc.cluster.local로 설정됨
+            # ── AI Server (On-Premise, Cloudflare Tunnel 경유) ──
+            # 온프레미스 RTX 4090 GPU 서버로 직접 요청 (Cloudflare Tunnel 경유)
+            # Host 헤더는 WebClientConfig에서 AI_SERVER_HOST 값으로 설정됨
             - name: AI_SERVER_URL
-              value: "http://keda-add-ons-http-interceptor-proxy.keda.svc.cluster.local:8080"
-            # ── Callback URL (Cloudflare 경유 외부 접근 가능 URL) ──
+              valueFrom:
+                secretKeyRef:
+                  name: tutti-secrets
+                  key: ai-server-url
+            - name: AI_SERVER_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: tutti-secrets
+                  key: ai-server-host
+            # ── AI Server 인증 (2중 보안) ──
+            # Layer 1: Cloudflare Access Service Token (네트워크 레벨 — 터널 접근 자체를 차단)
+            # Layer 2: X-API-Key (애플리케이션 레벨 — AI 서버에서 직접 검증)
+            - name: AI_SERVER_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: tutti-secrets
+                  key: ai-server-api-key
+            - name: CF_ACCESS_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: tutti-secrets
+                  key: cf-access-client-id
+            - name: CF_ACCESS_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: tutti-secrets
+                  key: cf-access-client-secret
+            # ── Callback URL (AI서버 → 메인서버 콜백용 공개 URL) ──
             - name: CALLBACK_BASE_URL
-              value: "https://REDACTED"
+              valueFrom:
+                secretKeyRef:
+                  name: tutti-secrets
+                  key: callback-base-url
             # ── AI Callback Secret ──
             - name: AI_CALLBACK_SECRET
               valueFrom:

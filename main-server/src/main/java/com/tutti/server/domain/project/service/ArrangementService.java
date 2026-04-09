@@ -287,7 +287,7 @@ public class ArrangementService {
 
     /**
      * AI 서버의 Multipart 완료 콜백을 처리합니다.
-     * KEDA 0-Scaling 환경에서 AI 파드가 즉시 삭제될 수 있으므로,
+     * 온프레미스 AI 서버에서 결과를 안정적으로 전달하기 위해,
      * MIDI 파일을 콜백과 함께 직접 수신합니다.
      *
      * <p>

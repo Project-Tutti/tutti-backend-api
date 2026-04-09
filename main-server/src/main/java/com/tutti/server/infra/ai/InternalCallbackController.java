@@ -32,7 +32,7 @@ import java.security.MessageDigest;
  * </ul>
  *
  * <p>
- * KEDA 0-Scaling 환경에서는 AI 파드가 콜백 직후 삭제될 수 있으므로,
+ * 온프레미스 AI 서버에서 편곡 결과를 안정적으로 전달하기 위해,
  * 완료 시 MIDI 파일을 직접 multipart로 전송합니다.
  * </p>
  */

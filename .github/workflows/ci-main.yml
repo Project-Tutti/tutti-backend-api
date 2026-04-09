@@ -154,7 +154,13 @@ jobs:
             --from-literal=supabase-key="${{ secrets.SUPABASE_KEY }}" \
             --from-literal=supabase-url="${{ secrets.SUPABASE_URL }}" \
             --from-literal=jwt-secret="${{ secrets.JWT_SECRET }}" \
+            --from-literal=ai-server-url="${{ secrets.AI_SERVER_URL }}" \
+            --from-literal=ai-server-host="${{ secrets.AI_SERVER_HOST }}" \
+            --from-literal=callback-base-url="${{ secrets.CALLBACK_BASE_URL }}" \
             --from-literal=ai-callback-secret="${{ secrets.AI_CALLBACK_SECRET }}" \
+            --from-literal=ai-server-api-key="${{ secrets.AI_SERVER_API_KEY }}" \
+            --from-literal=cf-access-client-id="${{ secrets.CF_ACCESS_CLIENT_ID }}" \
+            --from-literal=cf-access-client-secret="${{ secrets.CF_ACCESS_CLIENT_SECRET }}" \
             --from-literal=google-client-id="${{ secrets.GOOGLE_CLIENT_ID }}" \
             --from-literal=google-client-secret="${{ secrets.GOOGLE_CLIENT_SECRET }}" \
             --dry-run=client -o yaml | kubectl apply -f -

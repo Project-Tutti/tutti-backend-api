@@ -61,16 +61,21 @@ springdoc:
     tags-sorter: alpha
     operations-sorter: method
 
-# ── AI Server (KEDA 0-Scaling) ──
-# base-url: KEDA 인터셉터 프록시 주소 (k8s 환경에서는 AI_SERVER_URL 환경변수로 주입)
-# host-header: KEDA가 실제 AI 서버로 라우팅하기 위한 Host 헤더 값
+# ── AI Server (On-Premise, Cloudflare Tunnel 경유) ──
+# base-url: AI 서버 URL (프로덕션: AI_SERVER_URL 환경변수로 주입, 로컬: http://localhost:8000)
+# host-header: Cloudflare Tunnel 라우팅을 위한 Host 헤더 값
+# api-key: AI 서버 인증용 API 키 (허가되지 않은 요청 차단)
+# cf-access-*: Cloudflare Access Service Token (네트워크 레벨 접근 제어)
 ai:
   server:
     base-url: ${AI_SERVER_URL:http://localhost:8000}
-    host-header: ${AI_SERVER_HOST:ai-server.tutti.svc.cluster.local}
-    timeout: 420000 # GPU 콜드 스타트(노드 프로비저닝 3~5분) 고려 (ms)
+    host-header: ${AI_SERVER_HOST:}
+    api-key: ${AI_SERVER_API_KEY:}
+    timeout: 120000 # 온프레미스 GPU 상시 가동, 콜드 스타트 불필요 (2분)
     callback-base-url: ${CALLBACK_BASE_URL:http://localhost:8080}
     callback-secret: ${AI_CALLBACK_SECRET:default-callback-secret}
+    cf-access-client-id: ${CF_ACCESS_CLIENT_ID:}
+    cf-access-client-secret: ${CF_ACCESS_CLIENT_SECRET:}
 
 # ── Supabase Storage ──
 supabase:
@@ -163,10 +168,11 @@ springdoc:
   swagger-ui:
     enabled: true
 
-# SEC-4: prod에서 콜백 시크릿 필수
+# SEC-4: prod에서 콜백 시크릿 + AI 서버 API 키 필수
 ai:
   server:
     callback-secret: ${AI_CALLBACK_SECRET}
+    api-key: ${AI_SERVER_API_KEY}
 
 logging:
   level:
