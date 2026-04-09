@@ -1,6 +1,6 @@
 package com.tutti.server.infra.ai.dto;
 
-import lombok.Getter;
+import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
@@ -14,7 +14,7 @@ import lombok.NoArgsConstructor;
  * MIDI 파일은 "file" 파트로 함께 전송
  * </p>
  */
-@Getter
+@Data
 @NoArgsConstructor
 public class AiCallbackPayload {
 

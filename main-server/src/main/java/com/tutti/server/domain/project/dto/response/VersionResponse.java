@@ -23,6 +23,7 @@ public class VersionResponse {
     private Integer maxNote;
     private String genre;
     private Double temperature;
+    private Integer progress;
     private LocalDateTime createdAt;
 
     public static VersionResponse from(ProjectVersion version) {
@@ -40,6 +41,7 @@ public class VersionResponse {
                 .maxNote(version.getMaxNote())
                 .genre(version.getGenre() != null ? version.getGenre().name() : null)
                 .temperature(version.getTemperature())
+                .progress(version.getProgress())
                 .createdAt(version.getCreatedAt())
                 .build();
     }
