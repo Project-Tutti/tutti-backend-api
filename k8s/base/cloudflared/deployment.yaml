@@ -18,6 +18,19 @@ metadata:
     tier: network
 spec:
   replicas: 2
+  
+  # ⚠️ 스케줄링 전략 (Node 개수에 따른 주의사항)
+  # 1) 현재 Node가 2대이고, 밑의 podAntiAffinity(분산)가 켜져 있어
+  #    단일 배포 시 빈 노드가 없어 교착(Pending)되는 것을 피하기 위해 옛 파드를 먼저 1개 지웁니다. (maxUnavailable: 1)
+  # 2) 💡 만약 향후 GKE 클러스터 노드를 '3대 이상'으로 스케일업 하신다면, 
+  #    이 strategy 통째로 삭제(또는 주석 처리)하시면 기본 전략(maxSurge: 25%)으로 
+  #    안전하게 성능 저하 없이 무중단 배포됩니다!
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 0
+      
   selector:
     matchLabels:
       app: cloudflared
