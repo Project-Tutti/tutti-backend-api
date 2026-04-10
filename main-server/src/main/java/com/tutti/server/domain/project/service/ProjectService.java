@@ -111,6 +111,9 @@ public class ProjectService {
         // 2-1. 장르 유효성 검증
         Genre genre = resolveGenre(request.getGenre());
 
+        // 2-2. 생성 대상 악기 유효성 검증 — generatable 카테고리만 허용
+        validateGeneratableInstrument(request.getInstrumentId());
+
         // 3. 파일을 서버 로컬에 저장하고 경로를 반환
         String midiFilePath = saveMidiFile(userId, file);
 
@@ -251,6 +254,9 @@ public class ProjectService {
         // fallback 후에도 null이면 기본값 사용
         if (effectiveGenre == null) effectiveGenre = Genre.CLASSICAL;
         if (effectiveTemperature == null) effectiveTemperature = 1.0;
+
+        // 생성 대상 악기 유효성 검증 — generatable 카테고리만 허용
+        validateGeneratableInstrument(effectiveInstrumentId);
 
         ProjectVersion version = ProjectVersion.builder()
                 .project(project)
@@ -600,6 +606,19 @@ public class ProjectService {
             return Genre.valueOf(genreStr.toUpperCase());
         } catch (IllegalArgumentException e) {
             throw new BusinessException(ErrorCode.INVALID_GENRE);
+        }
+    }
+
+    /**
+     * 생성 대상 악기가 AI 편곡 가능한(generatable) 카테고리인지 검증합니다.
+     * null이면 검증을 건너뜁니다 (optional 필드).
+     *
+     * @throws BusinessException UNSUPPORTED_INSTRUMENT — generatable이 아닌 카테고리
+     */
+    private void validateGeneratableInstrument(Integer instrumentId) {
+        if (instrumentId == null) return;
+        if (!categoryRepository.existsByRepresentativeProgramAndGeneratableTrue(instrumentId)) {
+            throw new BusinessException(ErrorCode.UNSUPPORTED_INSTRUMENT);
         }
     }
 }

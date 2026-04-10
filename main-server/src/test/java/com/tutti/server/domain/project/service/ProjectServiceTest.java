@@ -184,6 +184,10 @@ class ProjectServiceTest {
                     List.of(new MappingItem(0, 40)),
                     40, null, null);
 
+            // mock: instrumentId=40이 generatable 카테고리
+            given(categoryRepository.existsByRepresentativeProgramAndGeneratableTrue(40))
+                    .willReturn(true);
+
             // mock: targetInstrumentId=40이 유효한 카테고리
             given(categoryRepository.existsById(40))
                     .willReturn(true);
