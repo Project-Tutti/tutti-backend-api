@@ -521,12 +521,11 @@ public class ProjectService {
         if (mappingItems == null || mappingItems.isEmpty()) {
             return;
         }
-        // 매핑 대상 카테고리가 생성 가능한지 검증
+        // 매핑 대상이 유효한 카테고리인지 검증 (generatable 여부와 무관)
         for (MappingItem item : mappingItems) {
-            if (!categoryRepository.existsByRepresentativeProgramAndGeneratableTrue(
-                    item.getTargetInstrumentId())) {
-                throw new BusinessException(ErrorCode.UNSUPPORTED_INSTRUMENT,
-                        "지원하지 않는 악기 카테고리: " + item.getTargetInstrumentId());
+            if (!categoryRepository.existsById(item.getTargetInstrumentId())) {
+                throw new BusinessException(ErrorCode.INVALID_INSTRUMENT_CATEGORY,
+                        "존재하지 않는 악기 카테고리: " + item.getTargetInstrumentId());
             }
         }
         for (MappingItem item : mappingItems) {
