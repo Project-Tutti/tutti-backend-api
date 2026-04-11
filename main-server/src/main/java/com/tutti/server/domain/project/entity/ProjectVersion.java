@@ -165,9 +165,15 @@ public class ProjectVersion extends BaseTimeEntity {
         this.status = newStatus;
     }
 
-    /** 진행률 업데이트 — AI 서버의 SSE 콜백에 의해 호출됩니다. */
+    /** 
+     * 진행률 업데이트 — AI 서버의 SSE 콜백에 의해 호출됩니다. 
+     * 비동기 콜백 순서 역전(Out-of-order)으로 인해 진행률 바가 
+     * 역행하는 것을 방지하기 위해 단방향(Monotonic) 증가만 허용합니다.
+     */
     public void updateProgress(int progress) {
-        this.progress = progress;
+        if (progress > this.progress) {
+            this.progress = progress;
+        }
     }
 
     /**

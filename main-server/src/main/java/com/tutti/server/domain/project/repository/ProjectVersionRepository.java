@@ -26,4 +26,7 @@ public interface ProjectVersionRepository extends JpaRepository<ProjectVersion, 
             "WHERE v.project.id = :projectId AND v.deletedAt IS NULL " +
             "ORDER BY v.createdAt DESC")
     List<ProjectVersion> findByProjectIdWithMappings(@Param("projectId") Long projectId);
+
+    /** 가비지 컬렉터를 위한 쿼리: 지정된 시각 이전에 업데이트가 멈춘 특정 상태의 버전을 찾습니다. */
+    List<ProjectVersion> findByStatusAndUpdatedAtBefore(ProjectVersion.VersionStatus status, java.time.LocalDateTime threshold);
 }

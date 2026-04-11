@@ -13,14 +13,14 @@ import org.springframework.data.redis.listener.RedisMessageListenerContainer;
  *
  * <h3>등록되는 Bean 2개</h3>
  * <ol>
- * <li>{@code stringRedisTemplate} — AI 요청 큐(LPUSH) + SSE 이벤트 발행(PUBLISH)</li>
+ * <li>{@code stringRedisTemplate} — AI 요청 스트림(XADD) + SSE 이벤트 발행(PUBLISH)</li>
  * <li>{@code redisMessageListenerContainer} — SSE 이벤트 구독(SUBSCRIBE)</li>
  * </ol>
  *
  * <h3>Redis 채널</h3>
  * <ul>
  * <li>{@code "tutti:sse:progress"} — SSE 진행률 이벤트 Pub/Sub 채널</li>
- * <li>{@code "ai:arrange:queue"} — AI 편곡 요청 큐 (Redis List)</li>
+ * <li>{@code "ai:arrange:stream"} — AI 편곡 요청 스트림 (Redis Streams + Consumer Group)</li>
  * </ul>
  */
 @Configuration

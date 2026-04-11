@@ -147,8 +147,11 @@ spec:
                 secretKeyRef:
                   name: tutti-secrets
                   key: redis-password
-            - name: REDIS_SSL
-              value: "true"   # Upstash는 TLS 필수
+            - name: REDIS_TLS
+              valueFrom:
+                secretKeyRef:
+                  name: tutti-secrets
+                  key: redis-tls
           resources:
             requests:
               cpu: "250m"       # e2-medium(2 vCPU)에 적합한 요청

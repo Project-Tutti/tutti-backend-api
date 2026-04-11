@@ -23,6 +23,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.io.IOException;
 import java.util.List;
@@ -36,7 +38,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * <h3>아키텍처 위치</h3>
  *
  * <pre>
- * ProjectService → <b>ArrangementService</b> ──(Redis LPUSH)──→ AI 서버 Worker (BRPOP)
+ * ProjectService → <b>ArrangementService</b> ──(Redis XADD)──→ AI 서버 Worker (XREADGROUP)
  *                                           ←──(HTTP 콜백)────← AI 서버
  *                        │
  *                  InternalCallbackController (콜백 수신)
@@ -99,8 +101,8 @@ public class ArrangementService {
 
     /** Redis Pub/Sub 채널명 — SSE 이벤트 브로드캐스트용 */
     private static final String SSE_CHANNEL = "tutti:sse:progress";
-    /** Redis List 키 — AI 편곡 요청 큐 */
-    private static final String QUEUE_KEY = "ai:arrange:queue";
+    /** Redis Stream 키 — AI 편곡 요청 스트림 (Consumer Group 기반) */
+    private static final String STREAM_KEY = "ai:arrange:stream";
 
     // ── SSE Emitter 저장소 ──
     // 키: "projectId:versionId" 복합 키 (방어적 코딩 + 디버깅 용이성)
@@ -157,21 +159,57 @@ public class ArrangementService {
         });
     }
 
+    /**
+     * 무한 로딩 방지 (Garbage Collector) 스케줄러.
+     *
+     * <p>
+     * AI 서버가 처리 도중 비정상 종료되거나 긴급 재작동해야 하는 경우,
+     * DB에는 PROCESSING 상태로 영원히 남아 앱 성능을 저하시키거나 버그를 발생시킬 수 있습니다.
+     * 이 스케줄러가 5분 단위로 돌면서, 마지막 생존 신고(updatedAt)로부터
+     * 15분이 경과한 프로젝트를 찾아 자동으로 FAILED 상태로 강제 전환합니다.
+     * </p>
+     */
+    @Scheduled(fixedDelay = 300_000) // 5분(300초)마다 실행
+    @Transactional
+    public void cleanupStuckProjects() {
+        // 15분 전 기준선
+        java.time.LocalDateTime threshold = java.time.LocalDateTime.now().minusMinutes(15);
+
+        List<ProjectVersion> stuckVersions = versionRepository.findByStatusAndUpdatedAtBefore(
+                ProjectVersion.VersionStatus.PROCESSING, threshold);
+
+        if (!stuckVersions.isEmpty()) {
+            log.warn("AI 서버 생존 확인 불가(가비지 컬렉터 작동): {}개의 버전을 FAILED 처리합니다.", stuckVersions.size());
+            for (ProjectVersion version : stuckVersions) {
+                version.updateStatus(ProjectVersion.VersionStatus.FAILED);
+                // JPA 트랜잭션이 종료될 때 Dirty Checking으로 자동 update 쿼리 발생
+                
+                // 만일을 위해 실패 브로드캐스트 (프론트엔드 연결이 남아있을 경우 대비)
+                publishSseEvent(ProgressEvent.builder()
+                        .projectId(version.getProject().getId())
+                        .versionId(version.getId())
+                        .status("failed")
+                        .progress(version.getProgress())
+                        .build());
+            }
+        }
+    }
+
     // ══════════════════════════════════════════════════════
     // AI 서버 비동기 호출
     // ══════════════════════════════════════════════════════
 
     /**
-     * Redis 큐에 편곡 요청을 발행합니다.
+     * Redis Stream에 편곡 요청을 발행합니다.
      *
      * <p>
-     * AI 편곡은 3~5분이 걸리므로, 큐에 넣고 즉시 반환합니다.
-     * 온프레미스 AI 서버의 Worker가 BRPOP으로 1건씩 꺼내어 처리합니다.
+     * AI 편곡은 3~5분이 걸리므로, Stream에 넣고 즉시 반환합니다.
+     * 온프레미스 AI 서버의 Worker가 XREADGROUP으로 Consumer Group에서 1건씩 꺼내어 처리합니다.
      * </p>
      *
      * <pre>
-     * 이 메서드 →(Redis LPUSH)→ "ai:arrange:queue"
-     *   → AI Worker가 BRPOP으로 큐에서 꺼냄
+     * 이 메서드 →(Redis XADD)→ "ai:arrange:stream"
+     *   → AI Worker가 XREADGROUP으로 스트림에서 꺼냄
      *   → 편곡 완료 후 HTTP 콜백 →(POST)→ /internal/callback/arrange
      *     → handleCallback() → DB 저장 + Redis PUBLISH → SSE 전달
      * </pre>
@@ -212,11 +250,11 @@ public class ArrangementService {
                 .callbackSecret(callbackSecret)
                 .build();
 
-        // 3. Redis 큐에 편곡 요청 발행 (AI Worker가 BRPOP으로 소비)
+        // 3. Redis Stream에 편곡 요청 발행 (AI Worker가 XREADGROUP으로 소비)
         try {
             String requestJson = objectMapper.writeValueAsString(request);
-            redisTemplate.opsForList().leftPush(QUEUE_KEY, requestJson);
-            log.info("AI 편곡 요청 큐 등록 완료: project={}, version={}",
+            redisTemplate.opsForStream().add(STREAM_KEY, Map.of("data", requestJson));
+            log.info("AI 편곡 요청 스트림 등록 완료: project={}, version={}",
                     project.getId(), version.getId());
         } catch (Exception e) {
             log.error("Redis 큐 발행 실패: project={}, version={}, error={}",
@@ -237,13 +275,13 @@ public class ArrangementService {
         });
 
         // Redis Pub/Sub로 실패 이벤트 브로드캐스트 (모든 Pod에 전달)
+        // → deliverSseEventLocally()에서 status=failed 감지 시 emitter 자동 종료
         publishSseEvent(ProgressEvent.builder()
                 .projectId(projectId)
                 .versionId(versionId)
                 .status("failed")
                 .progress(0)
                 .build());
-        completeSseEmitters(emitterKey(projectId, versionId));
     }
 
     // ══════════════════════════════════════════════════════
@@ -270,10 +308,15 @@ public class ArrangementService {
         log.info("AI 콜백 수신 (JSON): project={}, version={}, status={}",
                 payload.getProjectId(), payload.getVersionId(), payload.getStatus());
 
-        // 1. 상태값 파싱 — 알 수 없는 값이면 FAILED로 안전하게 폴백
+        // 1. 상태값 파싱 — null이거나 알 수 없는 값이면 FAILED로 안전하게 폴백
         ProjectVersion.VersionStatus parsedStatus;
         try {
-            parsedStatus = ProjectVersion.VersionStatus.valueOf(payload.getStatus().toUpperCase());
+            if (payload.getStatus() == null) {
+                log.warn("콜백 status가 null입니다: versionId={}", payload.getVersionId());
+                parsedStatus = ProjectVersion.VersionStatus.FAILED;
+            } else {
+                parsedStatus = ProjectVersion.VersionStatus.valueOf(payload.getStatus().toUpperCase());
+            }
         } catch (IllegalArgumentException e) {
             log.warn("알 수 없는 상태값: {}", payload.getStatus());
             parsedStatus = ProjectVersion.VersionStatus.FAILED;
@@ -297,10 +340,7 @@ public class ArrangementService {
                 .progress(payload.getProgress() != null ? payload.getProgress() : 0)
                 .build());
 
-        // 4. 실패 시 SSE 연결 종료
-        if (status == ProjectVersion.VersionStatus.FAILED) {
-            completeSseEmitters(emitterKey(payload.getProjectId(), payload.getVersionId()));
-        }
+        // 4. 실패 시 SSE 연결 종료는 deliverSseEventLocally()가 자동 처리
     }
 
     /**
@@ -368,14 +408,14 @@ public class ArrangementService {
             versionRepository.save(version);
         });
 
-        // 4. Redis Pub/Sub로 완료 이벤트 브로드캐스트 + 연결 종료
+        // 4. Redis Pub/Sub로 완료 이벤트 브로드캐스트
+        // → deliverSseEventLocally()에서 status=complete 감지 시 emitter 자동 종료
         publishSseEvent(ProgressEvent.builder()
                 .projectId(payload.getProjectId())
                 .versionId(payload.getVersionId())
                 .status("complete")
                 .progress(100)
                 .build());
-        completeSseEmitters(emitterKey(payload.getProjectId(), payload.getVersionId()));
     }
 
     /**
@@ -511,6 +551,19 @@ public class ArrangementService {
      * </pre>
      */
     private void publishSseEvent(ProgressEvent event) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    doPublishSseEvent(event);
+                }
+            });
+        } else {
+            doPublishSseEvent(event);
+        }
+    }
+
+    private void doPublishSseEvent(ProgressEvent event) {
         try {
             String json = objectMapper.writeValueAsString(event);
             redisTemplate.convertAndSend(SSE_CHANNEL, json);
