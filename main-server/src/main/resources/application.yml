@@ -9,6 +9,15 @@ spring:
   profiles:
     active: local # 기본 프로필: local
 
+  # ── Redis (요청 큐잉 + SSE 멀티 Pod 동기화) ──
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      ssl:
+        enabled: ${REDIS_SSL:false}
+
   # ── JPA / Hibernate ──
   jpa:
     hibernate:

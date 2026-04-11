@@ -1,5 +1,6 @@
 package com.tutti.server.domain.project.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tutti.server.domain.project.dto.response.ProgressEvent;
 import com.tutti.server.domain.project.entity.Project;
 import com.tutti.server.domain.project.entity.ProjectVersion;
@@ -16,6 +17,7 @@ import com.tutti.server.domain.instrument.repository.InstrumentCategoryRepositor
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,33 +31,37 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
- * AI 편곡 서비스 — FastAPI AI 서버와의 비동기 통신 및 SSE 진행률 스트리밍을 관리합니다.
+ * AI 편곡 서비스 — Redis 기반 비동기 통신 및 SSE 진행률 스트리밍을 관리합니다.
  *
  * <h3>아키텍처 위치</h3>
- * 
+ *
  * <pre>
- * ProjectService → <b>ArrangementService</b> ──(WebClient)──→ FastAPI AI 서버 (비동기)
- *                                           ←──(콜백)────← FastAPI AI 서버
+ * ProjectService → <b>ArrangementService</b> ──(Redis LPUSH)──→ AI 서버 Worker (BRPOP)
+ *                                           ←──(HTTP 콜백)────← AI 서버
  *                        │
  *                  InternalCallbackController (콜백 수신)
  *                        │
- *               Client ←─(SSE)── 이 서비스의 emitters
+ *                  콜백 수신 Pod: DB 업데이트 → Redis PUBLISH
+ *                        │
+ *               모든 Pod: Redis SUBSCRIBE → 로컬 emitter에 SSE 전달
  * </pre>
  *
  * <h3>핵심 동작 흐름</h3>
  * <ol>
- * <li>{@code requestArrangement()} — AI 서버에 편곡 요청을 비동기(WebClient)로 전송</li>
+ * <li>{@code requestArrangement()} — Redis 큐에 편곡 요청 발행 (LPUSH)</li>
  * <li>{@code subscribe()} — 클라이언트가 SSE 연결을 열고 실시간 진행률을 수신</li>
  * <li>{@code handleCallback()} — AI 서버가 진행 상황을 HTTP 콜백으로 전달</li>
- * <li>콜백 수신 → DB 상태 업데이트 + SSE 이벤트 전송 → (완료/실패 시) SSE 종료</li>
+ * <li>콜백 수신 → DB 업데이트 → Redis PUBLISH → 모든 Pod가 수신 → 로컬 emitter에 SSE 전달</li>
  * </ol>
  *
- * <h3>메모리 안전성</h3>
- * SSE emitter는 {@link ConcurrentHashMap}에 저장되며, {@code @Scheduled}로
- * 만료된 emitter를 주기적으로 정리하여 메모리 누수를 방지합니다.
+ * <h3>멀티 Pod SSE 동기화</h3>
+ * SSE emitter는 각 Pod의 인메모리에 저장되지만, Redis Pub/Sub를 통해
+ * 모든 Pod에 이벤트가 브로드캐스트되므로 어떤 Pod가 콜백을 수신하든
+ * SSE 연결을 보유한 Pod로 이벤트가 전달됩니다.
  *
+ * @see com.tutti.server.infra.redis.SseRedisSubscriber
  * @see com.tutti.server.infra.ai.InternalCallbackController
- * @see com.tutti.server.global.config.WebClientConfig
+ * @see com.tutti.server.global.config.RedisConfig
  */
 @Slf4j
 @Service
@@ -76,27 +82,39 @@ public class ArrangementService {
      * 다른 요청을 처리할 수 있습니다. RestTemplate은 동기/블로킹이므로
      * AI 서버 응답을 기다리는 동안 스레드가 점유됩니다.
      */
-    private final WebClient aiWebClient;
+    private final WebClient aiWebClient;                 // 유지: 디버그/폴백용
+    private final StringRedisTemplate redisTemplate;      // Redis: 큐잉 + Pub/Sub
+    private final ObjectMapper objectMapper;              // JSON 직렬화
     private final ProjectVersionRepository versionRepository;
     private final VersionMappingRepository mappingRepository;
     private final SupabaseStorageService storageService;
     private final ConverterService converterService;
     private final InstrumentCategoryRepository categoryRepository;
 
-    // @Value: application.yml의 설정값을 주입받습니다.
-    // ${...} 안의 값은 환경변수나 설정 파일에서 자동으로 치환됩니다.
     @Value("${ai.server.callback-base-url}")
     private String callbackBaseUrl;
 
     @Value("${ai.server.callback-secret:default-callback-secret}")
     private String callbackSecret;
 
+    /** Redis Pub/Sub 채널명 — SSE 이벤트 브로드캐스트용 */
+    private static final String SSE_CHANNEL = "tutti:sse:progress";
+    /** Redis List 키 — AI 편곡 요청 큐 */
+    private static final String QUEUE_KEY = "ai:arrange:queue";
+
     // ── SSE Emitter 저장소 ──
-    // ConcurrentHashMap: 동시에 여러 스레드가 접근해도 안전한 Map.
-    // 여러 클라이언트가 동시에 SSE를 구독/해제할 수 있으므로 동시성 안전이 필수입니다.
-    private final Map<Long, List<SseEmitter>> emitters = new ConcurrentHashMap<>();
+    // 키: "projectId:versionId" 복합 키 (방어적 코딩 + 디버깅 용이성)
+    private final Map<String, List<SseEmitter>> emitters = new ConcurrentHashMap<>();
     /** emitter 생성 시각 — 만료 정리 스케줄러에서 사용합니다. */
-    private final Map<Long, Long> emitterCreatedAt = new ConcurrentHashMap<>();
+    private final Map<String, Long> emitterCreatedAt = new ConcurrentHashMap<>();
+
+    /** projectId:versionId 복합 키 생성 — null 방어 포함 */
+    private static String emitterKey(Long projectId, Long versionId) {
+        // null 방어: 잘못된 payload에서도 안전한 키 생성
+        String pId = (projectId != null) ? projectId.toString() : "unknown";
+        String vId = (versionId != null) ? versionId.toString() : "unknown";
+        return pId + ":" + vId;
+    }
 
     // ══════════════════════════════════════════════════════
     // 만료 Emitter 정리 스케줄러
@@ -122,8 +140,8 @@ public class ArrangementService {
         long now = System.currentTimeMillis();
         emitterCreatedAt.entrySet().removeIf(entry -> {
             if (now - entry.getValue() > SSE_TIMEOUT_MS + 60_000) {
-                Long versionId = entry.getKey();
-                List<SseEmitter> list = emitters.remove(versionId);
+                String key = entry.getKey();
+                List<SseEmitter> list = emitters.remove(key);
                 if (list != null) {
                     list.forEach(emitter -> {
                         try {
@@ -132,7 +150,7 @@ public class ArrangementService {
                         }
                     });
                 }
-                log.debug("만료 SSE emitter 정리: versionId={}", versionId);
+                log.debug("만료 SSE emitter 정리: key={}", key);
                 return true;
             }
             return false;
@@ -144,22 +162,18 @@ public class ArrangementService {
     // ══════════════════════════════════════════════════════
 
     /**
-     * AI 서버에 편곡 요청을 비동기로 전송합니다.
+     * Redis 큐에 편곡 요청을 발행합니다.
      *
      * <p>
-     * <b>비동기로 호출하는 이유:</b>
+     * AI 편곡은 3~5분이 걸리므로, 큐에 넣고 즉시 반환합니다.
+     * 온프레미스 AI 서버의 Worker가 BRPOP으로 1건씩 꺼내어 처리합니다.
      * </p>
-     * AI 편곡은 3~5분이 걸리므로, HTTP 응답을 기다리지 않고 즉시 반환합니다.
-     * AI 서버는 작업이 완료되면 {@code callbackUrl}로 결과를 POST합니다.
      *
-     * <p>
-     * <b>데이터 흐름:</b>
-     * </p>
-     * 
      * <pre>
-     * 이 메서드 →(WebClient POST)→ FastAPI /api/v1/arrange
-     *   → AI 서버가 작업 완료 후 →(POST)→ /internal/callback/arrange
-     *     → handleCallback() → DB 저장 + SSE 전송
+     * 이 메서드 →(Redis LPUSH)→ "ai:arrange:queue"
+     *   → AI Worker가 BRPOP으로 큐에서 꺼냄
+     *   → 편곡 완료 후 HTTP 콜백 →(POST)→ /internal/callback/arrange
+     *     → handleCallback() → DB 저장 + Redis PUBLISH → SSE 전달
      * </pre>
      *
      * @param project 프로젝트 엔티티 (MIDI 파일 경로 포함)
@@ -198,43 +212,38 @@ public class ArrangementService {
                 .callbackSecret(callbackSecret)
                 .build();
 
-        // 3. 비동기 전송 — subscribe()로 "발사 후 잊기(fire-and-forget)"
-        aiWebClient.post()
-                .uri("/api/v1/arrange")
-                .bodyValue(request)
-                .retrieve()
-                .bodyToMono(String.class)
-                .doOnSuccess(response -> {
-                    log.info("AI 서버 편곡 요청 전송 완료: project={}, version={}",
-                            project.getId(), version.getId());
-                })
-                .doOnError(error -> {
-                    log.error("AI 서버 편곡 요청 실패: project={}, version={}, error={}",
-                            project.getId(), version.getId(), error.getMessage());
-                    handleAiRequestFailure(version.getId());
-                })
-                .subscribe(); // 비동기 실행 — 응답을 기다리지 않음
+        // 3. Redis 큐에 편곡 요청 발행 (AI Worker가 BRPOP으로 소비)
+        try {
+            String requestJson = objectMapper.writeValueAsString(request);
+            redisTemplate.opsForList().leftPush(QUEUE_KEY, requestJson);
+            log.info("AI 편곡 요청 큐 등록 완료: project={}, version={}",
+                    project.getId(), version.getId());
+        } catch (Exception e) {
+            log.error("Redis 큐 발행 실패: project={}, version={}, error={}",
+                    project.getId(), version.getId(), e.getMessage());
+            handleAiRequestFailure(project.getId(), version.getId());
+        }
     }
 
     /**
-     * AI 서버 요청 자체가 실패한 경우의 처리.
-     * 네트워크 오류, 타임아웃, AI 서버 다운 등의 상황에서 호출됩니다.
+     * AI 요청 실패 처리 — Redis 큐 발행 실패 또는 콜백 처리 오류 시 호출됩니다.
      */
     @Transactional
-    public void handleAiRequestFailure(Long versionId) {
+    public void handleAiRequestFailure(Long projectId, Long versionId) {
         versionRepository.findById(versionId).ifPresent(version -> {
             version.updateStatus(ProjectVersion.VersionStatus.FAILED);
             version.updateProgress(0);
             versionRepository.save(version);
         });
 
-        // SSE로 실패 상태를 연결된 클라이언트에게 전송
-        sendSseEvent(versionId, ProgressEvent.builder()
+        // Redis Pub/Sub로 실패 이벤트 브로드캐스트 (모든 Pod에 전달)
+        publishSseEvent(ProgressEvent.builder()
+                .projectId(projectId)
                 .versionId(versionId)
                 .status("failed")
                 .progress(0)
                 .build());
-        completeSseEmitters(versionId);
+        completeSseEmitters(emitterKey(projectId, versionId));
     }
 
     // ══════════════════════════════════════════════════════
@@ -249,6 +258,15 @@ public class ArrangementService {
      */
     @Transactional
     public void handleCallback(AiCallbackPayload payload) {
+        // 0. payload 유효성 검증 — 잘못된 콜백 방어
+        if (payload.getVersionId() == null) {
+            log.error("콜백 payload에 versionId가 없습니다. 무시합니다.");
+            return;
+        }
+        if (payload.getProjectId() == null) {
+            log.warn("콜백 payload에 projectId가 없습니다: versionId={}", payload.getVersionId());
+        }
+
         log.info("AI 콜백 수신 (JSON): project={}, version={}, status={}",
                 payload.getProjectId(), payload.getVersionId(), payload.getStatus());
 
@@ -271,8 +289,8 @@ public class ArrangementService {
             versionRepository.save(version);
         });
 
-        // 3. SSE 이벤트 전송
-        sendSseEvent(payload.getVersionId(), ProgressEvent.builder()
+        // 3. Redis Pub/Sub로 SSE 이벤트 브로드캐스트 (모든 Pod에 전달)
+        publishSseEvent(ProgressEvent.builder()
                 .projectId(payload.getProjectId())
                 .versionId(payload.getVersionId())
                 .status(status.name().toLowerCase())
@@ -281,7 +299,7 @@ public class ArrangementService {
 
         // 4. 실패 시 SSE 연결 종료
         if (status == ProjectVersion.VersionStatus.FAILED) {
-            completeSseEmitters(payload.getVersionId());
+            completeSseEmitters(emitterKey(payload.getProjectId(), payload.getVersionId()));
         }
     }
 
@@ -305,6 +323,13 @@ public class ArrangementService {
      */
     @Transactional
     public void handleCallbackWithFile(AiCallbackPayload payload, byte[] midiBytes) {
+        // 0. payload 유효성 검증
+        if (payload.getVersionId() == null || payload.getProjectId() == null) {
+            log.error("Multipart 콜백 payload 불완전: projectId={}, versionId={}",
+                    payload.getProjectId(), payload.getVersionId());
+            return;
+        }
+
         log.info("AI 완료 콜백 수신 (multipart): project={}, version={}, midiSize={}",
                 payload.getProjectId(), payload.getVersionId(), midiBytes.length);
 
@@ -343,14 +368,14 @@ public class ArrangementService {
             versionRepository.save(version);
         });
 
-        // 4. SSE 완료 이벤트 전송 + 연결 종료
-        sendSseEvent(payload.getVersionId(), ProgressEvent.builder()
+        // 4. Redis Pub/Sub로 완료 이벤트 브로드캐스트 + 연결 종료
+        publishSseEvent(ProgressEvent.builder()
                 .projectId(payload.getProjectId())
                 .versionId(payload.getVersionId())
                 .status("complete")
                 .progress(100)
                 .build());
-        completeSseEmitters(payload.getVersionId());
+        completeSseEmitters(emitterKey(payload.getProjectId(), payload.getVersionId()));
     }
 
     /**
@@ -418,18 +443,20 @@ public class ArrangementService {
         // 1. 새 SSE emitter 생성 (10분 타임아웃)
         SseEmitter emitter = new SseEmitter(SSE_TIMEOUT_MS);
 
-        // CopyOnWriteArrayList: 읽기가 많고 쓰기가 적은 경우에 최적화된 스레드 안전 리스트
-        emitters.computeIfAbsent(versionId, k -> new CopyOnWriteArrayList<>()).add(emitter);
-        emitterCreatedAt.putIfAbsent(versionId, System.currentTimeMillis());
+        // 복합 키: "projectId:versionId"
+        String key = emitterKey(projectId, versionId);
+
+        emitters.computeIfAbsent(key, k -> new CopyOnWriteArrayList<>()).add(emitter);
+        emitterCreatedAt.putIfAbsent(key, System.currentTimeMillis());
 
         // 2. 연결 종료 시 자동 정리 콜백 등록
         Runnable cleanup = () -> {
-            List<SseEmitter> list = emitters.get(versionId);
+            List<SseEmitter> list = emitters.get(key);
             if (list != null) {
                 list.remove(emitter);
                 if (list.isEmpty()) {
-                    emitters.remove(versionId);
-                    emitterCreatedAt.remove(versionId);
+                    emitters.remove(key);
+                    emitterCreatedAt.remove(key);
                 }
             }
         };
@@ -437,7 +464,7 @@ public class ArrangementService {
         emitter.onTimeout(cleanup);
         emitter.onError(e -> cleanup.run());
 
-        // 3. 초기 상태 전송 — 이미 COMPLETE면 즉시 종료
+        // 3. 초기 상태 전송 — 이미 COMPLETE면 즉시 종료 (Pod 사망 복구 핵심)
         versionRepository.findById(versionId)
                 .ifPresent(version -> sendInitialStatus(emitter, projectId, versionId, version));
 
@@ -472,9 +499,51 @@ public class ArrangementService {
         }
     }
 
-    /** 특정 버전에 연결된 모든 SSE 클라이언트에게 이벤트를 전송합니다. */
-    private void sendSseEvent(Long versionId, ProgressEvent event) {
-        List<SseEmitter> emitterList = emitters.get(versionId);
+    // ── Redis Pub/Sub를 통한 SSE 브로드캐스트 ──
+
+    /**
+     * Redis Pub/Sub로 SSE 이벤트를 전체 Pod에 브로드캐스트합니다.
+     * 콜백 핸들러에서 DB 업데이트 후 호출됩니다.
+     *
+     * <pre>
+     * 콜백 수신 → DB 업데이트 → publishSseEvent() → Redis PUBLISH
+     *   → 모든 Pod가 SUBSCRIBE 수신 → deliverSseEventLocally()
+     * </pre>
+     */
+    private void publishSseEvent(ProgressEvent event) {
+        try {
+            String json = objectMapper.writeValueAsString(event);
+            redisTemplate.convertAndSend(SSE_CHANNEL, json);
+        } catch (Exception e) {
+            log.error("Redis SSE publish 실패, 로컬 폴백: {}", e.getMessage());
+            // 폴백: Redis 장애 시 현재 Pod의 로컬 emitter라도 시도
+            deliverSseEventLocally(event);
+        }
+    }
+
+    /**
+     * 로컬 Pod의 인메모리 emitter에 SSE 이벤트를 전달합니다.
+     * {@link com.tutti.server.infra.redis.SseRedisSubscriber}에서 호출됩니다.
+     *
+     * <p>
+     * 이 Pod에 해당 emitter가 없으면 아무 일도 하지 않습니다 (정상 동작).
+     * </p>
+     */
+    public void deliverSseEventLocally(ProgressEvent event) {
+        String key = emitterKey(event.getProjectId(), event.getVersionId());
+        sendSseEvent(key, event);
+
+        // 완료/실패 상태이면 이 Pod의 emitter도 즉시 종료
+        // (다른 Pod에서 publishSseEvent → broadcast → 여기로 도착한 경우)
+        String status = event.getStatus();
+        if ("complete".equalsIgnoreCase(status) || "failed".equalsIgnoreCase(status)) {
+            completeSseEmitters(key);
+        }
+    }
+
+    /** 특정 복합 키에 연결된 모든 SSE 클라이언트에게 이벤트를 전송합니다. */
+    private void sendSseEvent(String key, ProgressEvent event) {
+        List<SseEmitter> emitterList = emitters.get(key);
         if (emitterList == null || emitterList.isEmpty()) {
             return;
         }
@@ -489,21 +558,21 @@ public class ArrangementService {
             try {
                 emitter.send(SseEmitter.event().name("progress").data(response));
             } catch (IOException e) {
-                log.warn("SSE 이벤트 전송 실패: versionId={}", versionId);
+                log.warn("SSE 이벤트 전송 실패: key={}", key);
                 deadEmitters.add(emitter);
             }
         }
         emitterList.removeAll(deadEmitters);
         if (emitterList.isEmpty()) {
-            emitters.remove(versionId);
-            emitterCreatedAt.remove(versionId);
+            emitters.remove(key);
+            emitterCreatedAt.remove(key);
         }
     }
 
     /** 완료/실패 시 모든 SSE 연결을 종료합니다. */
-    private void completeSseEmitters(Long versionId) {
-        List<SseEmitter> emitterList = emitters.remove(versionId);
-        emitterCreatedAt.remove(versionId);
+    private void completeSseEmitters(String key) {
+        List<SseEmitter> emitterList = emitters.remove(key);
+        emitterCreatedAt.remove(key);
         if (emitterList != null) {
             for (SseEmitter emitter : emitterList) {
                 try {

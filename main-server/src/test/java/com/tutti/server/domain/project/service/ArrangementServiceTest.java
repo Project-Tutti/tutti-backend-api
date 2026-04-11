@@ -1,5 +1,6 @@
 package com.tutti.server.domain.project.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tutti.server.domain.instrument.repository.InstrumentCategoryRepository;
 import com.tutti.server.domain.project.entity.ProjectVersion;
 import com.tutti.server.domain.project.repository.ProjectVersionRepository;
@@ -14,6 +15,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -33,6 +35,10 @@ class ArrangementServiceTest {
 
     @Mock
     private WebClient aiWebClient;
+    @Mock
+    private StringRedisTemplate redisTemplate;
+    @Mock
+    private ObjectMapper objectMapper;
     @Mock
     private ProjectVersionRepository versionRepository;
     @Mock
@@ -206,7 +212,7 @@ class ArrangementServiceTest {
             given(versionRepository.findById(1L)).willReturn(Optional.of(version));
 
             // when
-            arrangementService.handleAiRequestFailure(1L);
+            arrangementService.handleAiRequestFailure(1L, 1L);
 
             // then
             assertThat(version.getStatus()).isEqualTo(ProjectVersion.VersionStatus.FAILED);
