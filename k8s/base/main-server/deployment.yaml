@@ -17,13 +17,14 @@ metadata:
     app: main-server
     tier: backend
 spec:
-  replicas: 1  # 💰 Spot VM 비용 최소화: HPA가 필요 시 스케일업
-  # ⚠️ 단일 레플리카에서 무중단 배포를 위한 전략
+  # replicas 미지정 → HPA가 단독 관리 (배포 시 HPA 값 덮어쓰기 방지)
+  # ⚠️ 무중단 배포를 위한 전략
+  # maxSurge: 2 → 2대씩 병렬 교체로 배포 속도 향상
   # maxUnavailable: 0 → 새 파드가 Ready되기 전까지 기존 파드를 유지
   strategy:
     type: RollingUpdate
     rollingUpdate:
-      maxSurge: 1
+      maxSurge: 2
       maxUnavailable: 0
   selector:
     matchLabels:
@@ -130,6 +131,24 @@ spec:
                 secretKeyRef:
                   name: tutti-secrets
                   key: google-client-secret
+            # ── Redis (요청 큐잉 + SSE 멀티 Pod 동기화) ──
+            - name: REDIS_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: tutti-secrets
+                  key: redis-host
+            - name: REDIS_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: tutti-secrets
+                  key: redis-port
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: tutti-secrets
+                  key: redis-password
+            - name: REDIS_SSL
+              value: "true"   # Upstash는 TLS 필수
           resources:
             requests:
               cpu: "250m"       # e2-medium(2 vCPU)에 적합한 요청

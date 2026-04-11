@@ -163,6 +163,9 @@ jobs:
             --from-literal=cf-access-client-secret="${{ secrets.CF_ACCESS_CLIENT_SECRET }}" \
             --from-literal=google-client-id="${{ secrets.GOOGLE_CLIENT_ID }}" \
             --from-literal=google-client-secret="${{ secrets.GOOGLE_CLIENT_SECRET }}" \
+            --from-literal=redis-host="${{ secrets.REDIS_HOST }}" \
+            --from-literal=redis-port="${{ secrets.REDIS_PORT }}" \
+            --from-literal=redis-password="${{ secrets.REDIS_PASSWORD }}" \
             --dry-run=client -o yaml | kubectl apply -f -
 
           kubectl create secret generic cloudflare-tunnel-secret \

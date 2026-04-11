@@ -8,8 +8,8 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: main-server
-  minReplicas: 1   # 💰 Spot VM 비용 최소화: 유휴 시 1개 파드만 유지
-  maxReplicas: 5    # 전시 트래픽에 충분한 최대치
+  minReplicas: 2   # 🛡️ 롤링 업데이트 시 최소 1대 유지 보장 (maxUnavailable: 0 + minReplicas: 2)
+  maxReplicas: 4
   metrics:
     - type: Resource
       resource:
