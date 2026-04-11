@@ -87,7 +87,10 @@ docker compose up -d postgres
 export DB_USERNAME=postgres
 export DB_PASSWORD=postgres
 export JWT_SECRET=dev-secret-key-for-local-development-only-32chars
-export AI_SERVER_URL=http://localhost:8000   # AI 서버가 로컬에서 실행 중인 경우
+# Redis 오버라이드 (AI 기능 활성화 시 필요, 로컬 Docker Redis 사용 시 생략 가능)
+export REDIS_HOST=your-upstash-host...
+export REDIS_PASSWORD=your-upstash-password...
+export REDIS_TLS=true
 ```
 
 ---
@@ -116,13 +119,13 @@ curl http://localhost:8080/actuator/health
 # {"status":"UP"}
 ```
 
-### 3.2 AI 서버 연동 (선택사항)
+### 3.2 AI Worker 연동 (선택사항)
 
-AI 서버는 별도 레포지토리에서 관리됩니다. 로컬에서 AI 서버가 함께 필요한 경우:
+AI 편곡 기능은 별도 레포지토리의 AI Worker와 Redis Streams를 통해 통신합니다. 로컬에서 AI 편곡 기능까지 필요한 경우:
 
-1. AI 서버 레포를 별도로 클론하여 실행
-2. `AI_SERVER_URL` 환경변수를 AI 서버 주소로 설정
-3. AI 서버 없이도 메인 서버의 인증/프로젝트 CRUD 기능은 독립적으로 테스트 가능
+1. Upstash Redis 접속 정보(`REDIS_HOST`, `REDIS_PASSWORD`, `REDIS_TLS=true`)를 설정 (또는 로컬 Docker Redis 구동)
+2. AI Worker 레포지토리를 별도로 클론하여 실행 (`docker compose up -d ai-worker`)
+3. AI Worker 없이도 메인 서버의 인증/프로젝트 CRUD 기능은 독립적으로 테스트 가능 (편곡 요청 시 큐에 쌓임)
 
 ---
 
@@ -288,17 +291,17 @@ cd main-server
 - `jwt.secret` 값이 환경변수와 일치하는지 확인
 - 로그인 재시도하여 새 토큰 발급
 
-#### ❌ AI 서버 통신 실패
+#### ❌ Redis / AI Worker 통신 실패
 
 ```
-Connection refused to http://localhost:8000
+Cannot get Jedis connection; nested exception is redis.clients.jedis.exceptions.JedisConnectionException...
 ```
 
 **해결:**
 
-1. AI 서버가 별도 레포에서 실행 중인지 확인
-2. `AI_SERVER_URL` 환경변수가 올바르게 설정되었는지 확인
-3. AI 서버 없이도 인증/프로젝트 CRUD는 테스트 가능
+1. `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD` 환경변수가 올바른지 확인
+2. Upstash 접속 시 `REDIS_TLS=true`가 설정되었는지 확인
+3. AI 기능 없이 개발할 경우 제외해도 프로젝트 생성 등의 CRUD는 가능합니다.
 
 ### 7.2 유용한 디버깅 명령어
 

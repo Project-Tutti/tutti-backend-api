@@ -18,7 +18,6 @@ flowchart LR
     subgraph Cloudflare["☁️ Cloudflare Network"]
         B["CDN / WAF / SSL"]
         T1["Tunnel Connector\n(GKE 측)"]
-        T2["Tunnel Connector\n(학교 GPU 측)"]
     end
 
     subgraph GCP["🔷 GCP — GKE Cluster (us-central1-a)"]
@@ -27,9 +26,12 @@ flowchart LR
         CV["converter Pod\n(변환 백엔드)"]
     end
 
+    subgraph Upstash["⚡ Upstash"]
+        Redis["Serverless Redis\n(Message Queue)"]
+    end
+
     subgraph School["🎓 학교 GPU 서버"]
-        CF2["cloudflared\n(Tunnel Agent)"]
-        AI["FastAPI\n(AI 서빙)"]
+        AI["ai-worker\n(Redis Consumer)"]
     end
 
     subgraph Supabase["🐘 Supabase"]
@@ -41,8 +43,9 @@ flowchart LR
     CF -->|ClusterIP| MS
     MS -->|ClusterIP| CV
     MS -->|HTTPS via Cloudflare| B
-    B -->|Tunnel| T2 -->|내부 연결| CF2
-    CF2 -->|localhost| AI
+    MS -->|XADD (TLS)| Redis
+    AI -->|XREADGROUP (TLS)| Redis
+    AI -->|HTTPS| B
     MS -->|Connection Pool| DB
 ```
 
@@ -51,8 +54,8 @@ flowchart LR
 | 시나리오         | 흐름                                                                           |
 | ---------------- | ------------------------------------------------------------------------------ |
 | **API 요청**     | Client → Cloudflare CDN → Tunnel → GKE `cloudflared` → `main-server`           |
-| **AI 추론 요청** | `main-server` → Cloudflare Tunnel(outbound) → 학교 GPU `cloudflared` → FastAPI |
-| **AI 콜백 응답** | FastAPI → 학교 `cloudflared` → Cloudflare → GKE `cloudflared` → `main-server`  |
+| **AI 추론 요청** | `main-server` → Upstash Redis Streams (`ai:arrange:stream`) 발행 → 학교 GPU `ai-worker` 수신 |
+| **AI 콜백 응답** | `ai-worker` → HTTPS (Cloudflare CDN 경유) → GKE `main-server` webhook 콜백 API |
 | **DB 접근**      | `main-server` → Supabase PostgreSQL (직접 연결, HikariCP 커넥션 풀)            |
 
 ---
@@ -102,8 +105,9 @@ flowchart LR
 | 항목     | 로컬 (local)                   | 운영 (prod)                      |
 | -------- | ------------------------------ | -------------------------------- |
 | DB       | Docker PostgreSQL              | Supabase                         |
-| AI 서버  | localhost:8000                 | Cloudflare Tunnel → 학교 GPU     |
-| 네트워크 | Docker network                 | Cloudflare Tunnel                |
+| AI 큐잉  | Docker Redis                   | Upstash Serverless Redis         |
+| AI 서버  | 로컬 Worker 프로세스           | 학교 GPU Docker (단독 Worker)    |
+| 네트워크 | Docker network                 | Cloudflare Tunnel (Main 전용)    |
 | 프로필   | `SPRING_PROFILES_ACTIVE=local` | `SPRING_PROFILES_ACTIVE=prod`    |
 | 시크릿   | `.env` 파일                    | K8s Secret (GitHub Actions 주입) |
 
@@ -160,18 +164,14 @@ flowchart LR
 ### Phase 3: Cloudflare 설정
 
 - [ ] Cloudflare 계정 생성 및 도메인 등록
-- [ ] Cloudflare Tunnel 생성 (GKE용)
+- [ ] Cloudflare Tunnel 생성 (GKE용 Main Server)
   ```bash
   cloudflared tunnel create tutti-gke
   # 출력되는 Tunnel ID와 credentials 파일 저장
   ```
-- [ ] Cloudflare Tunnel 생성 (학교 GPU 서버용)
-  ```bash
-  cloudflared tunnel create tutti-gpu
-  ```
 - [ ] Cloudflare Dashboard에서 DNS 라우팅 설정
   - `<your-api-domain>` → `tutti-gke` tunnel
-  - `<your-ai-domain>` → `tutti-gpu` tunnel (내부용, Cloudflare Access로 보호)
+  - (더 이상 AI 서버를 위한 인바운드 튜널은 필요하지 않음)
 
 ### Phase 4: GitHub 설정
 
@@ -189,6 +189,10 @@ flowchart LR
   | `JWT_SECRET`                     | 256-bit JWT 시크릿                                                                       |
   | `CLOUDFLARE_TUNNEL_TOKEN`        | Cloudflare Tunnel 토큰                                                                   |
   | `AI_CALLBACK_SECRET`             | AI 콜백 인증 시크릿                                                                      |
+  | `REDIS_HOST`                     | Upstash Redis 엔드포인트                                                                 |
+  | `REDIS_PORT`                     | 6379                                                                                     |
+  | `REDIS_PASSWORD`                 | Upstash 비밀번호                                                                         |
+  | `REDIS_TLS`                      | true (Upstash 필수)                                                                      |
 
 - [ ] GitHub Repository Variables 등록
 
@@ -257,22 +261,21 @@ gcloud iam service-accounts add-iam-policy-binding \
   curl https://api.tutti.asia/actuator/health
   ```
 
-### Phase 7: 학교 GPU 서버 설정
+### Phase 7: 학교 GPU 서버 (AI Worker) 설정
 
-- [ ] `cloudflared` 설치
-  ```bash
-  # Linux (학교 서버)
-  wget https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
-  chmod +x cloudflared-linux-amd64
-  sudo mv cloudflared-linux-amd64 /usr/local/bin/cloudflared
+- [ ] 프로젝트 코드 클론 및 `.env.production` 설정
+  ```env
+  REDIS_HOST=xxx.upstash.io
+  REDIS_PORT=6379
+  REDIS_PASSWORD=...
+  REDIS_TLS=true
+  CALLBACK_BASE_URL=https://api.tutti.asia
+  AI_CALLBACK_SECRET=...
   ```
-- [ ] Tunnel 실행 (systemd 서비스로 등록 권장)
+- [ ] AI Worker 컨테이너 실행
   ```bash
-  cloudflared tunnel run --token $TUNNEL_TOKEN
-  ```
-- [ ] FastAPI 서버 실행 확인
-  ```bash
-  curl http://localhost:8000/health
+  # 더 이상 FastAPI를 띄울 필요가 없으므로 worker만 단독 구동
+  docker compose up -d ai-worker
   ```
 
 ---
