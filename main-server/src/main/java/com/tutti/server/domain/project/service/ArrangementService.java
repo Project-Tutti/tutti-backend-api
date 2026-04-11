@@ -472,7 +472,8 @@ public class ArrangementService {
      *   → SseEmitter 생성 (10분 타임아웃)
      *   → 초기 상태 전송 (현재 진행률)
      *   → AI 콜백 수신 시마다 이벤트 전송
-     *   → COMPLETE/FAILED 시 emitter.complete()로 종료
+     *   → COMPLETE/FAILED 이벤트 전송 후 클라이언트가 eventSource.close()로 종료
+     *   → 클라이언트 미종료 시 타임아웃(10분) + GC 스케줄러가 자동 정리
      * </pre>
      *
      * @param projectId 프로젝트 ID
@@ -530,10 +531,8 @@ public class ArrangementService {
             // SSE 이벤트: "progress"라는 이름으로 JSON 데이터를 전송
             emitter.send(SseEmitter.event().name("progress").data(response));
 
-            if (version.isComplete()
-                    || version.getStatus() == ProjectVersion.VersionStatus.FAILED) {
-                emitter.complete();
-            }
+            // FIN 패킷 레이스 컨디션을 막기 위해 백엔드에서 강제로 연결을 먼저 끊지 않음
+            // 프론트엔드가 이벤트를 받고 eventSource.close()를 호출하면 onCompletion 훅이 발동하여 정리됨
         } catch (IOException e) {
             emitter.completeWithError(e);
         }
@@ -586,12 +585,9 @@ public class ArrangementService {
         String key = emitterKey(event.getProjectId(), event.getVersionId());
         sendSseEvent(key, event);
 
-        // 완료/실패 상태이면 이 Pod의 emitter도 즉시 종료
-        // (다른 Pod에서 publishSseEvent → broadcast → 여기로 도착한 경우)
-        String status = event.getStatus();
-        if ("complete".equalsIgnoreCase(status) || "failed".equalsIgnoreCase(status)) {
-            completeSseEmitters(key);
-        }
+        // 프론트엔드가 마지막 패킷(완료/실패)을 완전히 수신하기 전 서버가 
+        // 소켓을 닫아버리는 문제(Truncation)를 방지하기 위해 강제 종료 로직 제거.
+        // 연결은 프론트엔드 측에서 eventSource.close()를 호출하거나 SseEmitter의 기본 타임아웃에 의해 종료됨.
     }
 
     /** 특정 복합 키에 연결된 모든 SSE 클라이언트에게 이벤트를 전송합니다. */
@@ -622,20 +618,7 @@ public class ArrangementService {
         }
     }
 
-    /** 완료/실패 시 모든 SSE 연결을 종료합니다. */
-    private void completeSseEmitters(String key) {
-        List<SseEmitter> emitterList = emitters.remove(key);
-        emitterCreatedAt.remove(key);
-        if (emitterList != null) {
-            for (SseEmitter emitter : emitterList) {
-                try {
-                    emitter.complete();
-                } catch (Exception e) {
-                    log.debug("SSE emitter 종료 중 오류: {}", e.getMessage());
-                }
-            }
-        }
-    }
+
 
     /** VersionStatus를 사용자에게 친절한 한글 메시지로 변환합니다. */
     private String toStatusMessage(ProjectVersion.VersionStatus status) {
