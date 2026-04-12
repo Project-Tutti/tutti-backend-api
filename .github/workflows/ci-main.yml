@@ -175,13 +175,19 @@ jobs:
             --dry-run=client -o yaml | kubectl apply -f -
 
           # 모니터링 네임스페이스 및 시크릿 배포
-          # jdbc:postgresql://을 postgres:// 형식으로 자동 변환하여 Exporter용 통일
-          DATA_SOURCE_URI=$(echo "${{ secrets.SUPABASE_DB_URL }}" | sed 's/jdbc:postgresql/postgres/g')
+          # jdbc:postgresql URL 파싱 및 오류 없는 DSN 포맷 추출
+          export RAW_URL="${{ secrets.SUPABASE_DB_URL }}"
+          DATA_SOURCE_URI=$(python3 -c "
+          import urllib.parse, os
+          q = urllib.parse.urlparse(os.environ['RAW_URL'].replace('jdbc:postgresql', 'postgresql'))
+          query = urllib.parse.parse_qs(q.query)
+          user = urllib.parse.quote(query.get('user', [''])[0])
+          password = urllib.parse.quote(query.get('password', [''])[0])
+          print(f\"postgresql://{user}:{password}@{q.hostname}:{q.port}/{q.path.strip('/')}?sslmode=require\")
+          ")
           kubectl get namespace monitoring 2>/dev/null || kubectl create namespace monitoring
           kubectl create secret generic supabase-monitor-secret \
             --namespace=monitoring \
-            --from-literal=username="${{ secrets.SUPABASE_DB_USERNAME }}" \
-            --from-literal=password="${{ secrets.SUPABASE_DB_PASSWORD }}" \
             --from-literal=data-source-uri="$DATA_SOURCE_URI" \
             --dry-run=client -o yaml | kubectl apply -f -
 

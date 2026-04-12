@@ -1,0 +1,70 @@
+// ══════════════════════════════════════════════════════════════
+// Tutti AI Server — Grafana Alloy Configuration
+// ══════════════════════════════════════════════════════════════
+// 용도: 학교 AI 서버의 CPU/GPU 자원과 Python 로그를 GKE로 Push
+// 설치 방법:
+//   1. AI 서버에 접속 (SSH)
+//   2. Grafana Alloy 설치 (https://grafana.com/docs/alloy/latest/set-up/install/linux/)
+//   3. 이 설정 파일을 /etc/alloy/config.alloy 에 복사
+//   4. `systemctl restart alloy` 로 실행
+// ══════════════════════════════════════════════════════════════
+
+// 1. 머신 메트릭 수집 (CPU, RAM, Disk 등)
+prometheus.exporter.unix "ai_node_metrics" { }
+
+prometheus.scrape "node_scrape" {
+  targets = prometheus.exporter.unix.ai_node_metrics.targets
+  forward_to = [prometheus.remote_write.gke_prometheus.receiver]
+}
+
+// 2. 외부 AI 컨테이너 Docker 로그 수집 (파이썬 코드 수정 불필요)
+discovery.docker "ai_containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+discovery.relabel "ai_logs_relabel" {
+  targets = discovery.docker.ai_containers.targets
+
+  // 모든 Docker 컨테이너의 로그를 가져오되, 컨테이너 이름을 라벨로 붙임
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+}
+
+loki.source.docker "ai_docker_logs" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.relabel.ai_logs_relabel.output
+  forward_to = [loki.write.gke_loki.receiver]
+}
+
+// =========================================================
+// 🔒 Cloudflare Zero Trust (Service Auth) 전송 설정
+// =========================================================
+
+// ☀️ 푸시 목적지: Prometheus (Metrics)
+prometheus.remote_write "gke_prometheus" {
+  endpoint {
+    url = "https://metrics.tutti.asia/api/v1/write"
+    
+    // ⚠️ 아래 Client-Id 와 Client-Secret 값을 이전에 발급받은 실제 토큰으로 변경하세요!
+    headers = {
+      "CF-Access-Client-Id" = "YOUR_CLIENT_ID_HERE",
+      "CF-Access-Client-Secret" = "YOUR_CLIENT_SECRET_HERE",
+    }
+  }
+}
+
+// 🌙 푸시 목적지: Loki (Logs)
+loki.write "gke_loki" {
+  endpoint {
+    url = "https://logs.tutti.asia/loki/api/v1/push"
+    
+    // ⚠️ 위와 동일한 토큰 값 기입
+    headers = {
+      "CF-Access-Client-Id" = "YOUR_CLIENT_ID_HERE",
+      "CF-Access-Client-Secret" = "YOUR_CLIENT_SECRET_HERE",
+    }
+  }
+}
