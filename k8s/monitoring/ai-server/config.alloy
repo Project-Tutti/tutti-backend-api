@@ -17,6 +17,17 @@ prometheus.scrape "node_scrape" {
   forward_to = [prometheus.remote_write.gke_prometheus.receiver]
 }
 
+// 1-2. GPU 메트릭 수집 (필요 시 추가)
+// 현재 1건씩 순차 처리 구조이므로 GPU 모니터링은 비활성화.
+// 동시 처리 도입 시 nvidia_gpu_exporter를 설치하고 아래 주석을 해제하세요.
+// 설치 가이드: https://github.com/utkuozdemir/nvidia_gpu_exporter
+//
+// prometheus.scrape "gpu_scrape" {
+//   targets = [{ "__address__" = "localhost:9835" }]
+//   forward_to = [prometheus.remote_write.gke_prometheus.receiver]
+//   scrape_interval = "15s"
+// }
+
 // 2. 외부 AI 컨테이너 Docker 로그 수집 (파이썬 코드 수정 불필요)
 discovery.docker "ai_containers" {
   host = "unix:///var/run/docker.sock"

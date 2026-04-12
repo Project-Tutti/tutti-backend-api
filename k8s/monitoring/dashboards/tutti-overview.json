@@ -1,0 +1,235 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "title": "🟢 서비스 상태",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "options": { "0": { "color": "red", "text": "DOWN" }, "1": { "color": "green", "text": "UP" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] }
+        },
+        "overrides": []
+      },
+      "targets": [
+        { "expr": "up{namespace=\"tutti\", container=\"main-server\"}", "legendFormat": "Main Server", "refId": "A" }
+      ]
+    },
+    {
+      "title": "🗄️ DB 연결 상태",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "options": { "0": { "color": "red", "text": "DOWN" }, "1": { "color": "green", "text": "UP" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] }
+        },
+        "overrides": []
+      },
+      "targets": [
+        { "expr": "pg_up", "legendFormat": "Supabase DB", "refId": "A" }
+      ]
+    },
+    {
+      "title": "🌐 Cloudflare Tunnel 상태",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "options": { "0": { "color": "red", "text": "DOWN" }, "1": { "color": "green", "text": "UP" } }, "type": "value" }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] }
+        },
+        "overrides": []
+      },
+      "targets": [
+        { "expr": "up{namespace=\"tutti\", container=\"cloudflared\"}", "legendFormat": "Cloudflare Tunnel", "refId": "A" }
+      ]
+    },
+    {
+      "title": "📊 활성 Pod 수",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "yellow", "value": 1 }, { "color": "green", "value": 2 }] }
+        },
+        "overrides": []
+      },
+      "targets": [
+        { "expr": "count(kube_pod_status_phase{namespace=\"tutti\", phase=\"Running\"})", "legendFormat": "Running Pods", "refId": "A" }
+      ]
+    },
+    {
+      "title": "⚡ Main Server — CPU 사용률",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "fillOpacity": 15, "lineWidth": 2, "gradientMode": "scheme" },
+          "color": { "mode": "palette-classic" }
+        },
+        "overrides": []
+      },
+      "options": { "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "expr": "rate(container_cpu_usage_seconds_total{namespace=\"tutti\", container=\"main-server\"}[5m])", "legendFormat": "{{pod}}", "refId": "A" }
+      ]
+    },
+    {
+      "title": "💾 Main Server — 메모리 사용량 (MB)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "decmbytes",
+          "custom": { "fillOpacity": 15, "lineWidth": 2, "gradientMode": "scheme" },
+          "color": { "mode": "palette-classic" }
+        },
+        "overrides": []
+      },
+      "options": { "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "expr": "container_memory_working_set_bytes{namespace=\"tutti\", container=\"main-server\"} / 1024 / 1024", "legendFormat": "{{pod}}", "refId": "A" }
+      ]
+    },
+    {
+      "title": "🌍 HTTP 요청 수 (초당)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": { "fillOpacity": 10, "lineWidth": 2, "gradientMode": "scheme" },
+          "color": { "mode": "palette-classic" }
+        },
+        "overrides": []
+      },
+      "targets": [
+        { "expr": "sum(rate(http_server_requests_seconds_count{namespace=\"tutti\"}[5m])) by (uri)", "legendFormat": "{{uri}}", "refId": "A" }
+      ]
+    },
+    {
+      "title": "⏱️ HTTP 응답 시간 P95 (초)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": { "fillOpacity": 10, "lineWidth": 2, "gradientMode": "scheme" },
+          "color": { "mode": "palette-classic" }
+        },
+        "overrides": []
+      },
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{namespace=\"tutti\"}[5m])) by (le, uri))", "legendFormat": "P95 {{uri}}", "refId": "A" }
+      ]
+    },
+    {
+      "title": "🔌 DB 커넥션 풀 (HikariCP)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": { "fillOpacity": 15, "lineWidth": 2 },
+          "color": { "mode": "palette-classic" }
+        },
+        "overrides": []
+      },
+      "targets": [
+        { "expr": "hikaricp_connections_active{namespace=\"tutti\"}", "legendFormat": "Active", "refId": "A" },
+        { "expr": "hikaricp_connections_idle{namespace=\"tutti\"}", "legendFormat": "Idle", "refId": "B" },
+        { "expr": "hikaricp_connections_pending{namespace=\"tutti\"}", "legendFormat": "Pending", "refId": "C" }
+      ]
+    },
+    {
+      "title": "☕ JVM 힙 메모리 (MB)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "decmbytes",
+          "custom": { "fillOpacity": 20, "lineWidth": 2, "gradientMode": "scheme" },
+          "color": { "mode": "palette-classic" }
+        },
+        "overrides": []
+      },
+      "targets": [
+        { "expr": "jvm_memory_used_bytes{namespace=\"tutti\", area=\"heap\"} / 1024 / 1024", "legendFormat": "Used ({{id}})", "refId": "A" },
+        { "expr": "jvm_memory_max_bytes{namespace=\"tutti\", area=\"heap\"} / 1024 / 1024", "legendFormat": "Max ({{id}})", "refId": "B" }
+      ]
+    },
+    {
+      "title": "📝 최근 에러 로그 (Main Server)",
+      "type": "logs",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 28 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      },
+      "targets": [
+        { "expr": "{namespace=\"tutti\", pod=~\"main-server.*\"} |= \"ERROR\"", "refId": "A" }
+      ]
+    },
+    {
+      "title": "🤖 AI Server — 최근 로그",
+      "type": "logs",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 38 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      },
+      "targets": [
+        { "expr": "{job=~\".*docker.*\"}", "refId": "A" }
+      ]
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["tutti", "overview"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "Asia/Seoul",
+  "title": "🎵 Tutti — 서비스 Overview",
+  "uid": "tutti-overview",
+  "version": 1
+}
