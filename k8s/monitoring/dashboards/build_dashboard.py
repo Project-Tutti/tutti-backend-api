@@ -215,28 +215,30 @@ def create_dashboard():
     panel_id += 4
 
     # ── Template Variables: 모듈 선택 ──
+    # container 라벨: Loki API /label/container/values 에서 확인된 정확한 이름 사용
+    #   main-server, tutti-backend-ai-ai-worker-1, converter-service, cloudflared
     dashboard["templating"]["list"] = [
         {
             "name": "log_module",
             "label": "📋 로그 모듈",
             "type": "custom",
             "query": ", ".join([
-                '📝 Main Server (App) : {namespace="tutti"\\, pod=~"main-server.*"} != "HTTP ("',
-                '🔍 Main Server (API) : {namespace="tutti"\\, pod=~"main-server.*"} |= "HTTP ("',
-                '🧠 AI Server : {container=~".*ai.*"} != "복구할 Pending 메시지 없음"',
-                '🔄 Converter : {namespace="tutti"\\, pod=~"converter.*"} != "GET /health"',
-                '🌐 Cloudflared : {namespace="tutti"\\, pod=~"cloudflared.*"}',
+                '📝 Main Server (App) : {container="main-server"} != "HTTP ("',
+                '🔍 Main Server (API) : {container="main-server"} |= "HTTP ("',
+                '🧠 AI Server : {container="tutti-backend-ai-ai-worker-1"} != "복구할 Pending 메시지 없음"',
+                '🔄 Converter : {container="converter-service"} != "GET /health"',
+                '🌐 Cloudflared : {container="cloudflared"}',
             ]),
             "current": {
                 "text": "📝 Main Server (App)",
-                "value": '{namespace="tutti", pod=~"main-server.*"} != "HTTP ("'
+                "value": '{container="main-server"} != "HTTP ("'
             },
             "options": [
-                {"text": "📝 Main Server (App)",  "value": '{namespace="tutti", pod=~"main-server.*"} != "HTTP ("', "selected": True},
-                {"text": "🔍 Main Server (API)",  "value": '{namespace="tutti", pod=~"main-server.*"} |= "HTTP ("', "selected": False},
-                {"text": "🧠 AI Server",          "value": '{container=~".*ai.*"} != "복구할 Pending 메시지 없음"', "selected": False},
-                {"text": "🔄 Converter",           "value": '{namespace="tutti", pod=~"converter.*"} != "GET /health"', "selected": False},
-                {"text": "🌐 Cloudflared",         "value": '{namespace="tutti", pod=~"cloudflared.*"}', "selected": False},
+                {"text": "📝 Main Server (App)",  "value": '{container="main-server"} != "HTTP ("', "selected": True},
+                {"text": "🔍 Main Server (API)",  "value": '{container="main-server"} |= "HTTP ("', "selected": False},
+                {"text": "🧠 AI Server",          "value": '{container="tutti-backend-ai-ai-worker-1"} != "복구할 Pending 메시지 없음"', "selected": False},
+                {"text": "🔄 Converter",           "value": '{container="converter-service"} != "GET /health"', "selected": False},
+                {"text": "🌐 Cloudflared",         "value": '{container="cloudflared"}', "selected": False},
             ],
             "hide": 0,
             "includeAll": False,

@@ -523,35 +523,35 @@ data:
                     "name": "log_module",
                     "label": "📋 로그 모듈",
                     "type": "custom",
-                    "query": "📝 Main Server (App) : {namespace=\"tutti\"\\, pod=~\"main-server.*\"} != \"HTTP (\", 🔍 Main Server (API) : {namespace=\"tutti\"\\, pod=~\"main-server.*\"} |= \"HTTP (\", 🧠 AI Server : {container=~\".*ai.*\"} != \"복구할 Pending 메시지 없음\", 🔄 Converter : {namespace=\"tutti\"\\, pod=~\"converter.*\"} != \"GET /health\", 🌐 Cloudflared : {namespace=\"tutti\"\\, pod=~\"cloudflared.*\"}",
+                    "query": "📝 Main Server (App) : {container=\"main-server\"} != \"HTTP (\", 🔍 Main Server (API) : {container=\"main-server\"} |= \"HTTP (\", 🧠 AI Server : {container=\"tutti-backend-ai-ai-worker-1\"} != \"복구할 Pending 메시지 없음\", 🔄 Converter : {container=\"converter-service\"} != \"GET /health\", 🌐 Cloudflared : {container=\"cloudflared\"}",
                     "current": {
                         "text": "📝 Main Server (App)",
-                        "value": "{namespace=\"tutti\", pod=~\"main-server.*\"} != \"HTTP (\""
+                        "value": "{container=\"main-server\"} != \"HTTP (\""
                     },
                     "options": [
                         {
                             "text": "📝 Main Server (App)",
-                            "value": "{namespace=\"tutti\", pod=~\"main-server.*\"} != \"HTTP (\"",
+                            "value": "{container=\"main-server\"} != \"HTTP (\"",
                             "selected": true
                         },
                         {
                             "text": "🔍 Main Server (API)",
-                            "value": "{namespace=\"tutti\", pod=~\"main-server.*\"} |= \"HTTP (\"",
+                            "value": "{container=\"main-server\"} |= \"HTTP (\"",
                             "selected": false
                         },
                         {
                             "text": "🧠 AI Server",
-                            "value": "{container=~\".*ai.*\"} != \"복구할 Pending 메시지 없음\"",
+                            "value": "{container=\"tutti-backend-ai-ai-worker-1\"} != \"복구할 Pending 메시지 없음\"",
                             "selected": false
                         },
                         {
                             "text": "🔄 Converter",
-                            "value": "{namespace=\"tutti\", pod=~\"converter.*\"} != \"GET /health\"",
+                            "value": "{container=\"converter-service\"} != \"GET /health\"",
                             "selected": false
                         },
                         {
                             "text": "🌐 Cloudflared",
-                            "value": "{namespace=\"tutti\", pod=~\"cloudflared.*\"}",
+                            "value": "{container=\"cloudflared\"}",
                             "selected": false
                         }
                     ],
