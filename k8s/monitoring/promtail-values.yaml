@@ -15,16 +15,20 @@ config:
   # 로그 라벨 자동 부여
   snippets:
     pipelineStages:
-      # JSON 포맷 로그 자동 파싱 (prod 프로필 logback-spring.xml 출력물)
-      - docker: {}
-      - json:
-          expressions:
-            level: level
-            logger: logger
-            message: message
-      - labels:
-          level:
-          logger:
+      # GKE containerd (CRI) 로그 포맷 파싱
+      - cri: {}
+      # tutti 네임스페이스의 JSON 로그만 구조화 파싱
+      # (Spring Boot 시작 배너 등 non-JSON 라인은 자동 스킵)
+      - match:
+          selector: '{namespace="tutti"}'
+          stages:
+            - json:
+                expressions:
+                  level: level
+                  logger: logger_name    # LogstashEncoder 필드명
+            - labels:
+                level:
+                logger:
 
 resources:
   requests:

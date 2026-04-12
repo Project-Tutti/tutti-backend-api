@@ -75,7 +75,7 @@ def test_project_happy_path(base_url, session, auth_headers, dummy_midi_file):
     dl_data = dl_res.json()
     assert dl_data["isSuccess"] is True
     # Signed URL이 반환되는지 확인
-    assert "signedUrl" in dl_data.get("result", {})
+    assert "downloadLink" in dl_data.get("result", {})
 
 
 @pytest.mark.ai_e2e

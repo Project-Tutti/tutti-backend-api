@@ -55,14 +55,16 @@ loki.source.docker "ai_docker_logs" {
 // =========================================================
 
 // ☀️ 푸시 목적지: Prometheus (Metrics)
+// 환경변수 설정 필요:
+//   export CF_ACCESS_CLIENT_ID="your-actual-client-id"
+//   export CF_ACCESS_CLIENT_SECRET="your-actual-client-secret"
 prometheus.remote_write "gke_prometheus" {
   endpoint {
     url = "https://metrics.tutti.asia/api/v1/write"
     
-    // ⚠️ 아래 Client-Id 와 Client-Secret 값을 이전에 발급받은 실제 토큰으로 변경하세요!
     headers = {
-      "CF-Access-Client-Id" = "YOUR_CLIENT_ID_HERE",
-      "CF-Access-Client-Secret" = "YOUR_CLIENT_SECRET_HERE",
+      "CF-Access-Client-Id" = env("CF_ACCESS_CLIENT_ID"),
+      "CF-Access-Client-Secret" = env("CF_ACCESS_CLIENT_SECRET"),
     }
   }
 }
@@ -72,10 +74,9 @@ loki.write "gke_loki" {
   endpoint {
     url = "https://logs.tutti.asia/loki/api/v1/push"
     
-    // ⚠️ 위와 동일한 토큰 값 기입
     headers = {
-      "CF-Access-Client-Id" = "YOUR_CLIENT_ID_HERE",
-      "CF-Access-Client-Secret" = "YOUR_CLIENT_SECRET_HERE",
+      "CF-Access-Client-Id" = env("CF_ACCESS_CLIENT_ID"),
+      "CF-Access-Client-Secret" = env("CF_ACCESS_CLIENT_SECRET"),
     }
   }
 }

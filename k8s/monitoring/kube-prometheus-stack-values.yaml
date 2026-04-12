@@ -64,8 +64,16 @@ grafana:
       cpu: 300m
       memory: 400Mi
 
-  # 🔐 초기 관리자 비밀번호 (배포 후 변경 필수)
-  adminPassword: "tutti-grafana-change-me"
+  # 🔐 관리자 비밀번호 (K8s Secret으로 관리)
+  # 배포 전 생성 필수:
+  #   kubectl create secret generic grafana-admin-secret \
+  #     --namespace monitoring \
+  #     --from-literal=admin-user=admin \
+  #     --from-literal=admin-password='YOUR_SECURE_PASSWORD'
+  admin:
+    existingSecret: grafana-admin-secret
+    userKey: admin-user
+    passwordKey: admin-password
 
   # 대시보드 영속성: ConfigMap 방식 (PVC 불필요)
   persistence:

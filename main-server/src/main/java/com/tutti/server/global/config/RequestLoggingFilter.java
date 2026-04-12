@@ -5,6 +5,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
@@ -20,7 +21,10 @@ import java.io.IOException;
  * - 결과 (HTTP 상태 코드)
  * - 소요 시간 (ms)
  *
- * Grafana Loki에서 이 로그를 조회하여 대시보드에 표시합니다.
+ * prod 환경에서는 MDC(Mapped Diagnostic Context)를 활용하여
+ * LogstashEncoder가 각 필드를 JSON에 자동 포함시킵니다.
+ * Grafana Loki에서 필드 기반 필터링이 즉시 가능합니다.
+ *
  * Actuator, Swagger 등 내부 경로는 제외합니다.
  */
 @Slf4j
@@ -52,12 +56,22 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
             String queryString = request.getQueryString();
             String fullUri = queryString != null ? uri + "?" + queryString : uri;
 
-            if (status >= 400) {
-                log.warn("HTTP {} {} — user={} ip={} — {} — {}ms",
-                        method, fullUri, user, clientIp, status, duration);
-            } else {
-                log.info("HTTP {} {} — user={} ip={} — {} — {}ms",
-                        method, fullUri, user, clientIp, status, duration);
+            // MDC에 구조화 필드 설정 — LogstashEncoder가 JSON에 자동 포함
+            MDC.put("httpMethod", method);
+            MDC.put("requestUri", fullUri);
+            MDC.put("httpStatus", String.valueOf(status));
+            MDC.put("durationMs", String.valueOf(duration));
+            MDC.put("userId", user);
+            MDC.put("clientIp", clientIp);
+
+            try {
+                if (status >= 400) {
+                    log.warn("HTTP ({}) {} — {} — {}ms", method, fullUri, status, duration);
+                } else {
+                    log.info("HTTP ({}) {} — {} — {}ms", method, fullUri, status, duration);
+                }
+            } finally {
+                MDC.clear();
             }
         }
     }
@@ -84,6 +98,8 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
                 || uri.startsWith("/swagger")
                 || uri.startsWith("/v3/api-docs")
                 || uri.startsWith("/webjars")
-                || uri.equals("/favicon.ico");
+                || uri.equals("/favicon.ico")
+                // SSE 엔드포인트는 장시간 연결 유지 → duration 이상치 방지
+                || uri.contains("/subscribe");
     }
 }

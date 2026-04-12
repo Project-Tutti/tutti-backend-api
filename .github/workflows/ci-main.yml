@@ -190,6 +190,13 @@ jobs:
             --from-literal=data-source-uri="$DATA_SOURCE_URI" \
             --dry-run=client -o yaml | kubectl apply -f -
 
+          # Grafana 관리자 비밀번호 (kube-prometheus-stack existingSecret 참조)
+          kubectl create secret generic grafana-admin-secret \
+            --namespace=monitoring \
+            --from-literal=admin-user=admin \
+            --from-literal=admin-password="${{ secrets.GRAFANA_ADMIN_PASSWORD }}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
       # ── 네임스페이스 확인 (리소스 배포 전 반드시 존재해야 함) ──
       - name: Ensure namespace exists
         run: kubectl get namespace tutti 2>/dev/null || kubectl create namespace tutti
@@ -221,3 +228,73 @@ jobs:
           echo "✅ Deployment successful!"
           echo "📋 Current pods:"
           kubectl get pods -n tutti -o wide
+
+      # ══════════════════════════════════════════════════════════
+      # 모니터링 스택 자동 배포 (변경이 있을 경우만)
+      # ══════════════════════════════════════════════════════════
+      - name: Detect monitoring changes
+        id: mon
+        run: |
+          BEFORE="${{ github.event.before }}"
+          if [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+            BEFORE="HEAD~1"
+          fi
+
+          CHANGED=$(git diff --name-only "$BEFORE" "${{ github.sha }}" -- k8s/monitoring/ 2>/dev/null || echo "")
+          echo "📋 Changed monitoring files:"
+          echo "$CHANGED"
+
+          # Helm values 변경 감지
+          echo "$CHANGED" | grep -q "kube-prometheus-stack-values.yaml" && echo "prometheus=true" >> "$GITHUB_OUTPUT" || true
+          echo "$CHANGED" | grep -q "loki-values.yaml" && echo "loki=true" >> "$GITHUB_OUTPUT" || true
+          echo "$CHANGED" | grep -q "promtail-values.yaml" && echo "promtail=true" >> "$GITHUB_OUTPUT" || true
+
+          # kubectl manifest 변경 감지
+          echo "$CHANGED" | grep -qE "(servicemonitor|exporter|alert-rules|namespace|dashboards/)" && echo "manifests=true" >> "$GITHUB_OUTPUT" || true
+
+      - name: Deploy monitoring stack (Helm)
+        if: steps.mon.outputs.prometheus || steps.mon.outputs.loki || steps.mon.outputs.promtail
+        run: |
+          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts --force-update
+          helm repo add grafana https://grafana.github.io/helm-charts --force-update
+          helm repo update
+
+          cd k8s/monitoring
+
+          if [ "${{ steps.mon.outputs.prometheus }}" = "true" ]; then
+            echo "📊 Upgrading kube-prometheus-stack..."
+            helm upgrade prometheus prometheus-community/kube-prometheus-stack \
+              -n monitoring -f kube-prometheus-stack-values.yaml --install --wait --timeout=5m
+          fi
+
+          if [ "${{ steps.mon.outputs.loki }}" = "true" ]; then
+            echo "📝 Upgrading Loki..."
+            helm upgrade loki grafana/loki \
+              -n monitoring -f loki-values.yaml --install --wait --timeout=5m
+          fi
+
+          if [ "${{ steps.mon.outputs.promtail }}" = "true" ]; then
+            echo "📋 Upgrading Promtail..."
+            helm upgrade promtail grafana/promtail \
+              -n monitoring -f promtail-values.yaml --install --wait --timeout=3m
+          fi
+
+          echo "✅ Helm upgrades complete"
+
+      - name: Deploy monitoring manifests (kubectl)
+        if: steps.mon.outputs.manifests
+        run: |
+          cd k8s/monitoring
+          echo "🔧 Applying monitoring manifests..."
+          kubectl apply -f namespace.yaml
+          kubectl apply -f main-server-servicemonitor.yaml
+          kubectl apply -f cloudflared-servicemonitor.yaml
+          kubectl apply -f postgres-exporter.yaml
+          kubectl apply -f alert-rules.yaml
+
+          # 대시보드 ConfigMap 생성 (Python 스크립트)
+          python3 dashboards/build_dashboard.py
+          kubectl apply -f dashboards/tutti-overview-cm.yaml
+
+          echo "✅ Monitoring manifests applied"
+

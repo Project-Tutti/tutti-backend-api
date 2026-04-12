@@ -1,11 +1,3 @@
-# ══════════════════════════════════════════════════════════════
-# Tutti Overview Dashboard — ConfigMap (Grafana 자동 프로비저닝)
-# ══════════════════════════════════════════════════════════════
-# grafana_dashboard: "1" 라벨 → Grafana sidecar 자동 감지
-# Pod 재시작 후에도 유지됩니다.
-#
-# 배포: kubectl apply -f k8s/monitoring/dashboards/tutti-overview-cm.yaml
-# ══════════════════════════════════════════════════════════════
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -16,293 +8,618 @@ metadata:
 data:
   tutti-overview.json: |-
     {
-      "annotations": { "list": [] },
-      "editable": true,
-      "graphTooltip": 1,
-      "id": null,
-      "links": [],
-      "panels": [
-        {
-          "title": "🟢 Main Server",
-          "type": "stat",
-          "gridPos": { "h": 4, "w": 5, "x": 0, "y": 0 },
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "fieldConfig": {
-            "defaults": {
-              "mappings": [{ "options": { "0": { "color": "red", "text": "DOWN" }, "1": { "color": "green", "text": "UP" } }, "type": "value" }],
-              "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] }
+        "annotations": {
+            "list": []
+        },
+        "editable": true,
+        "graphTooltip": 1,
+        "links": [],
+        "panels": [
+            {
+                "collapsed": false,
+                "gridPos": {
+                    "h": 1,
+                    "w": 24,
+                    "x": 0,
+                    "y": 0
+                },
+                "id": 1,
+                "panels": [],
+                "title": "🌟 클러스터 통합 가동 상태 리스트 (Status Overview)",
+                "type": "row"
+            },
+            {
+                "title": "전체 서비스 구동 상태 모음 (Main / AI / Converter / DB / Redis / CF Tunnel)",
+                "type": "table",
+                "id": 2,
+                "gridPos": {
+                    "h": 12,
+                    "w": 24,
+                    "x": 0,
+                    "y": 1
+                },
+                "datasource": {
+                    "type": "prometheus",
+                    "uid": "prometheus"
+                },
+                "targets": [
+                    {
+                        "expr": "kube_pod_status_ready{condition=\"true\", pod=~\".*main-server.*\"}",
+                        "format": "time_series",
+                        "instant": true,
+                        "legendFormat": "{{pod}}",
+                        "refId": "A"
+                    },
+                    {
+                        "expr": "up{job=\"node_scrape\"}",
+                        "format": "time_series",
+                        "instant": true,
+                        "legendFormat": "ai-server (외부 온프레미스)",
+                        "refId": "B"
+                    },
+                    {
+                        "expr": "kube_pod_status_ready{condition=\"true\", pod=~\".*converter.*\"}",
+                        "format": "time_series",
+                        "instant": true,
+                        "legendFormat": "{{pod}}",
+                        "refId": "C"
+                    },
+                    {
+                        "expr": "pg_up",
+                        "format": "time_series",
+                        "instant": true,
+                        "legendFormat": "supabase-db (외부/내부)",
+                        "refId": "E"
+                    },
+                    {
+                        "expr": "up{job=\"cloudflared-metrics\"}",
+                        "format": "time_series",
+                        "instant": true,
+                        "legendFormat": "cf-tunnel",
+                        "refId": "F"
+                    }
+                ],
+                "transformations": [
+                    {
+                        "id": "reduce",
+                        "options": {
+                            "includeTimeField": false,
+                            "mode": "seriesToRows",
+                            "reducers": [
+                                "lastNotNull"
+                            ]
+                        }
+                    }
+                ],
+                "fieldConfig": {
+                    "defaults": {
+                        "mappings": [
+                            {
+                                "options": {
+                                    "0": {
+                                        "color": "red",
+                                        "text": "🔴 DOWN (에러)"
+                                    },
+                                    "1": {
+                                        "color": "green",
+                                        "text": "🟢 UP (정상)"
+                                    }
+                                },
+                                "type": "value"
+                            }
+                        ],
+                        "custom": {
+                            "align": "left"
+                        }
+                    },
+                    "overrides": [
+                        {
+                            "matcher": {
+                                "id": "byType",
+                                "options": "number"
+                            },
+                            "properties": [
+                                {
+                                    "id": "displayName",
+                                    "value": "STATUS"
+                                },
+                                {
+                                    "id": "custom.align",
+                                    "value": "center"
+                                }
+                            ]
+                        },
+                        {
+                            "matcher": {
+                                "id": "byType",
+                                "options": "string"
+                            },
+                            "properties": [
+                                {
+                                    "id": "displayName",
+                                    "value": "서비스 인스턴스 (INSTANCE)"
+                                }
+                            ]
+                        }
+                    ]
+                },
+                "options": {
+                    "showHeader": true
+                }
+            },
+            {
+                "collapsed": false,
+                "gridPos": {
+                    "h": 1,
+                    "w": 24,
+                    "x": 0,
+                    "y": 10
+                },
+                "id": 3,
+                "panels": [],
+                "title": "⚙️ 시스템 리소스 (Infrastructure)",
+                "type": "row"
+            },
+            {
+                "title": "CPU 사용량 및 Limit (Cores)",
+                "type": "timeseries",
+                "id": 4,
+                "gridPos": {
+                    "h": 8,
+                    "w": 8,
+                    "x": 0,
+                    "y": 11
+                },
+                "datasource": {
+                    "type": "prometheus",
+                    "uid": "prometheus"
+                },
+                "fieldConfig": {
+                    "defaults": {
+                        "custom": {
+                            "drawStyle": "line",
+                            "fillOpacity": 15,
+                            "gradientMode": "scheme"
+                        },
+                        "unit": "cores"
+                    }
+                },
+                "options": {
+                    "tooltip": {
+                        "mode": "multi",
+                        "sort": "none"
+                    }
+                },
+                "targets": [
+                    {
+                        "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"tutti\", container=\"main-server\"}[1m]))",
+                        "legendFormat": "Main Server CPU 사용",
+                        "refId": "A"
+                    },
+                    {
+                        "expr": "sum(kube_pod_container_resource_limits{namespace=\"tutti\", container=\"main-server\", resource=\"cpu\"})",
+                        "legendFormat": "Main Server CPU 한도(Limit)",
+                        "refId": "B"
+                    },
+                    {
+                        "expr": "sum(rate(container_cpu_usage_seconds_total{pod=~\"ai-.*\"}[1m]))",
+                        "legendFormat": "AI Server CPU 사용",
+                        "refId": "C"
+                    }
+                ]
+            },
+            {
+                "title": "메모리 사용량 및 Limit (Bytes)",
+                "type": "timeseries",
+                "id": 5,
+                "gridPos": {
+                    "h": 8,
+                    "w": 8,
+                    "x": 8,
+                    "y": 11
+                },
+                "datasource": {
+                    "type": "prometheus",
+                    "uid": "prometheus"
+                },
+                "fieldConfig": {
+                    "defaults": {
+                        "custom": {
+                            "drawStyle": "line",
+                            "fillOpacity": 15,
+                            "gradientMode": "scheme"
+                        },
+                        "unit": "bytes"
+                    }
+                },
+                "options": {
+                    "tooltip": {
+                        "mode": "multi",
+                        "sort": "none"
+                    }
+                },
+                "targets": [
+                    {
+                        "expr": "sum(container_memory_working_set_bytes{namespace=\"tutti\", container=\"main-server\"})",
+                        "legendFormat": "Main RAM 사용",
+                        "refId": "A"
+                    },
+                    {
+                        "expr": "sum(kube_pod_container_resource_limits{namespace=\"tutti\", container=\"main-server\", resource=\"memory\"})",
+                        "legendFormat": "Main RAM 한도(Limit)",
+                        "refId": "B"
+                    },
+                    {
+                        "expr": "sum(container_memory_working_set_bytes{pod=~\"ai-.*\"})",
+                        "legendFormat": "AI RAM 사용",
+                        "refId": "C"
+                    }
+                ]
+            },
+            {
+                "title": "네트워크 트래픽 (Bytes/s)",
+                "type": "timeseries",
+                "id": 6,
+                "gridPos": {
+                    "h": 8,
+                    "w": 8,
+                    "x": 16,
+                    "y": 11
+                },
+                "datasource": {
+                    "type": "prometheus",
+                    "uid": "prometheus"
+                },
+                "fieldConfig": {
+                    "defaults": {
+                        "custom": {
+                            "drawStyle": "line",
+                            "fillOpacity": 15,
+                            "gradientMode": "scheme"
+                        },
+                        "unit": "Bps"
+                    }
+                },
+                "options": {
+                    "tooltip": {
+                        "mode": "multi",
+                        "sort": "none"
+                    }
+                },
+                "targets": [
+                    {
+                        "expr": "sum(rate(container_network_receive_bytes_total{namespace=\"tutti\"}[1m]))",
+                        "legendFormat": "Receive",
+                        "refId": "A"
+                    },
+                    {
+                        "expr": "sum(rate(container_network_transmit_bytes_total{namespace=\"tutti\"}[1m]))",
+                        "legendFormat": "Transmit",
+                        "refId": "B"
+                    }
+                ]
+            },
+            {
+                "collapsed": false,
+                "gridPos": {
+                    "h": 1,
+                    "w": 24,
+                    "x": 0,
+                    "y": 20
+                },
+                "id": 7,
+                "panels": [],
+                "title": "🚦 애플리케이션 지표 (Application)",
+                "type": "row"
+            },
+            {
+                "title": "초당 HTTP 요청 수",
+                "type": "timeseries",
+                "id": 8,
+                "gridPos": {
+                    "h": 8,
+                    "w": 12,
+                    "x": 0,
+                    "y": 21
+                },
+                "datasource": {
+                    "type": "prometheus",
+                    "uid": "prometheus"
+                },
+                "fieldConfig": {
+                    "defaults": {
+                        "custom": {
+                            "drawStyle": "bars",
+                            "fillOpacity": 80
+                        },
+                        "unit": "reqps"
+                    }
+                },
+                "options": {
+                    "tooltip": {
+                        "mode": "multi",
+                        "sort": "none"
+                    }
+                },
+                "targets": [
+                    {
+                        "expr": "sum(rate(http_server_requests_seconds_count{namespace=\"tutti\"}[1m])) by (method)",
+                        "legendFormat": "{{method}}",
+                        "refId": "A"
+                    }
+                ]
+            },
+            {
+                "title": "HTTP 95퍼센타일 응답 지연율 (Seconds)",
+                "type": "timeseries",
+                "id": 9,
+                "gridPos": {
+                    "h": 8,
+                    "w": 12,
+                    "x": 12,
+                    "y": 21
+                },
+                "datasource": {
+                    "type": "prometheus",
+                    "uid": "prometheus"
+                },
+                "fieldConfig": {
+                    "defaults": {
+                        "custom": {
+                            "drawStyle": "line",
+                            "fillOpacity": 10,
+                            "gradientMode": "scheme"
+                        },
+                        "unit": "s"
+                    }
+                },
+                "options": {
+                    "tooltip": {
+                        "mode": "multi",
+                        "sort": "none"
+                    }
+                },
+                "targets": [
+                    {
+                        "expr": "histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{namespace=\"tutti\"}[1m])) by (le, method))",
+                        "legendFormat": "{{method}} latency",
+                        "refId": "A"
+                    }
+                ]
+            },
+            {
+                "title": "데이터베이스 커넥션 풀",
+                "type": "timeseries",
+                "id": 10,
+                "gridPos": {
+                    "h": 8,
+                    "w": 12,
+                    "x": 0,
+                    "y": 29
+                },
+                "datasource": {
+                    "type": "prometheus",
+                    "uid": "prometheus"
+                },
+                "fieldConfig": {
+                    "defaults": {
+                        "custom": {
+                            "drawStyle": "line",
+                            "fillOpacity": 20,
+                            "gradientMode": "scheme"
+                        }
+                    }
+                },
+                "options": {
+                    "tooltip": {
+                        "mode": "multi",
+                        "sort": "none"
+                    }
+                },
+                "targets": [
+                    {
+                        "expr": "sum(hikaricp_connections_active{namespace=\"tutti\"})",
+                        "legendFormat": "Active",
+                        "refId": "A"
+                    },
+                    {
+                        "expr": "sum(hikaricp_connections_idle{namespace=\"tutti\"})",
+                        "legendFormat": "Idle",
+                        "refId": "B"
+                    },
+                    {
+                        "expr": "sum(hikaricp_connections_max{namespace=\"tutti\"})",
+                        "legendFormat": "Max Limit",
+                        "refId": "C"
+                    }
+                ]
+            },
+            {
+                "title": "JVM 힙 메모리",
+                "type": "timeseries",
+                "id": 11,
+                "gridPos": {
+                    "h": 8,
+                    "w": 12,
+                    "x": 12,
+                    "y": 29
+                },
+                "datasource": {
+                    "type": "prometheus",
+                    "uid": "prometheus"
+                },
+                "fieldConfig": {
+                    "defaults": {
+                        "custom": {
+                            "drawStyle": "line",
+                            "fillOpacity": 20,
+                            "gradientMode": "scheme"
+                        },
+                        "unit": "bytes"
+                    }
+                },
+                "options": {
+                    "tooltip": {
+                        "mode": "multi",
+                        "sort": "none"
+                    }
+                },
+                "targets": [
+                    {
+                        "expr": "sum(jvm_memory_used_bytes{namespace=\"tutti\", area=\"heap\"})",
+                        "legendFormat": "Used",
+                        "refId": "A"
+                    },
+                    {
+                        "expr": "sum(jvm_memory_max_bytes{namespace=\"tutti\", area=\"heap\"})",
+                        "legendFormat": "Max Limit",
+                        "refId": "B"
+                    }
+                ]
+            },
+            {
+                "collapsed": false,
+                "gridPos": {
+                    "h": 1,
+                    "w": 24,
+                    "x": 0,
+                    "y": 40
+                },
+                "id": 12,
+                "panels": [],
+                "title": "📋 4대 모듈 실시간 로그 (Live Logs)",
+                "type": "row"
+            },
+            {
+                "title": "📝 Main Server 로그 (App Log)",
+                "type": "logs",
+                "id": 13,
+                "gridPos": {
+                    "h": 10,
+                    "w": 24,
+                    "x": 0,
+                    "y": 41
+                },
+                "datasource": {
+                    "type": "loki",
+                    "uid": "loki"
+                },
+                "options": {
+                    "showTime": true,
+                    "showLabels": false,
+                    "wrapLogMessage": true,
+                    "enableLogDetails": true,
+                    "sortOrder": "Descending"
+                },
+                "targets": [
+                    {
+                        "expr": "{namespace=\"tutti\", pod=~\"main-server.*\"} != \"HTTP (\"",
+                        "refId": "A"
+                    }
+                ]
+            },
+            {
+                "title": "🔍 Main Server 로그 (API Log)",
+                "type": "logs",
+                "id": 14,
+                "gridPos": {
+                    "h": 10,
+                    "w": 24,
+                    "x": 0,
+                    "y": 51
+                },
+                "datasource": {
+                    "type": "loki",
+                    "uid": "loki"
+                },
+                "options": {
+                    "showTime": true,
+                    "showLabels": false,
+                    "wrapLogMessage": true,
+                    "enableLogDetails": true,
+                    "sortOrder": "Descending"
+                },
+                "targets": [
+                    {
+                        "expr": "{namespace=\"tutti\", pod=~\"main-server.*\"} |= \"HTTP (\"",
+                        "refId": "A"
+                    }
+                ]
+            },
+            {
+                "title": "🧠 AI Server 로그",
+                "type": "logs",
+                "id": 15,
+                "gridPos": {
+                    "h": 10,
+                    "w": 24,
+                    "x": 0,
+                    "y": 61
+                },
+                "datasource": {
+                    "type": "loki",
+                    "uid": "loki"
+                },
+                "options": {
+                    "showTime": true,
+                    "showLabels": false,
+                    "wrapLogMessage": true,
+                    "enableLogDetails": true,
+                    "sortOrder": "Descending"
+                },
+                "targets": [
+                    {
+                        "expr": "{namespace=\"tutti\", pod=~\"ai-worker.*\"}",
+                        "refId": "A"
+                    }
+                ]
+            },
+            {
+                "title": "🔄 Converter Server 로그",
+                "type": "logs",
+                "id": 16,
+                "gridPos": {
+                    "h": 10,
+                    "w": 24,
+                    "x": 0,
+                    "y": 71
+                },
+                "datasource": {
+                    "type": "loki",
+                    "uid": "loki"
+                },
+                "options": {
+                    "showTime": true,
+                    "showLabels": false,
+                    "wrapLogMessage": true,
+                    "enableLogDetails": true,
+                    "sortOrder": "Descending"
+                },
+                "targets": [
+                    {
+                        "expr": "{namespace=\"tutti\", pod=~\"converter.*\"} != \"health\"",
+                        "refId": "A"
+                    }
+                ]
             }
-          },
-          "targets": [{ "expr": "up{namespace=\"tutti\", container=\"main-server\"}", "legendFormat": "Main Server", "refId": "A" }]
+        ],
+        "refresh": "10s",
+        "schemaVersion": 38,
+        "style": "dark",
+        "tags": [
+            "tutti",
+            "kubernetes"
+        ],
+        "templating": {
+            "list": []
         },
-        {
-          "title": "🗄️ Supabase DB",
-          "type": "stat",
-          "gridPos": { "h": 4, "w": 5, "x": 5, "y": 0 },
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "fieldConfig": {
-            "defaults": {
-              "mappings": [{ "options": { "0": { "color": "red", "text": "DOWN" }, "1": { "color": "green", "text": "UP" } }, "type": "value" }],
-              "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] }
-            }
-          },
-          "targets": [{ "expr": "pg_up", "legendFormat": "Supabase", "refId": "A" }]
+        "time": {
+            "from": "now-3h",
+            "to": "now"
         },
-        {
-          "title": "🌐 CF Tunnel",
-          "type": "stat",
-          "gridPos": { "h": 4, "w": 5, "x": 10, "y": 0 },
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "fieldConfig": {
-            "defaults": {
-              "mappings": [{ "options": { "0": { "color": "red", "text": "DOWN" }, "1": { "color": "green", "text": "UP" } }, "type": "value" }],
-              "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] }
-            }
-          },
-          "targets": [{ "expr": "up{namespace=\"tutti\", container=\"cloudflared\"}", "legendFormat": "Tunnel", "refId": "A" }]
-        },
-        {
-          "title": "🔴 Redis",
-          "type": "stat",
-          "gridPos": { "h": 4, "w": 4, "x": 15, "y": 0 },
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "fieldConfig": {
-            "defaults": {
-              "mappings": [{ "options": { "0": { "color": "red", "text": "DOWN" }, "1": { "color": "green", "text": "UP" } }, "type": "value" }],
-              "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] },
-              "noValue": "N/A"
-            }
-          },
-          "targets": [{ "expr": "redis_up or on() (lettuce_connection_count{namespace=\"tutti\"} > bool 0)", "legendFormat": "Redis", "refId": "A" }]
-        },
-        {
-          "title": "📊 Deployment / Pod 현황",
-          "type": "table",
-          "gridPos": { "h": 4, "w": 5, "x": 19, "y": 0 },
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "fieldConfig": {
-            "defaults": { "custom": { "align": "center" } },
-            "overrides": [
-              { "matcher": { "id": "byName", "options": "Value" }, "properties": [{ "id": "displayName", "value": "Pods" }] },
-              { "matcher": { "id": "byName", "options": "deployment" }, "properties": [{ "id": "displayName", "value": "Deployment" }] }
-            ]
-          },
-          "options": { "showHeader": true, "footer": { "show": false } },
-          "transformations": [
-            { "id": "reduce", "options": { "reducers": ["lastNotNull"] } },
-            { "id": "organize", "options": { "excludeByName": { "Time": true, "namespace": true } } }
-          ],
-          "targets": [{ "expr": "kube_deployment_status_replicas{namespace=\"tutti\"}", "legendFormat": "{{deployment}}", "refId": "A", "format": "table", "instant": true }]
-        },
-        {
-          "title": "⚡ Main Server — CPU",
-          "type": "timeseries",
-          "gridPos": { "h": 7, "w": 12, "x": 0, "y": 4 },
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "fieldConfig": {
-            "defaults": {
-              "unit": "short",
-              "custom": { "fillOpacity": 15, "lineWidth": 2, "gradientMode": "scheme" },
-              "color": { "mode": "palette-classic" }
-            }
-          },
-          "options": { "tooltip": { "mode": "multi" } },
-          "targets": [{ "expr": "rate(container_cpu_usage_seconds_total{namespace=\"tutti\", container=\"main-server\"}[5m])", "legendFormat": "{{pod}}", "refId": "A" }]
-        },
-        {
-          "title": "💾 Main Server — Memory (MB)",
-          "type": "timeseries",
-          "gridPos": { "h": 7, "w": 12, "x": 12, "y": 4 },
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "fieldConfig": {
-            "defaults": {
-              "unit": "decmbytes",
-              "custom": { "fillOpacity": 15, "lineWidth": 2, "gradientMode": "scheme" },
-              "color": { "mode": "palette-classic" }
-            }
-          },
-          "options": { "tooltip": { "mode": "multi" } },
-          "targets": [{ "expr": "container_memory_working_set_bytes{namespace=\"tutti\", container=\"main-server\"} / 1024 / 1024", "legendFormat": "{{pod}}", "refId": "A" }]
-        },
-        {
-          "title": "🖥️ AI Server — CPU",
-          "type": "timeseries",
-          "gridPos": { "h": 7, "w": 8, "x": 0, "y": 11 },
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "fieldConfig": {
-            "defaults": {
-              "unit": "percentunit",
-              "custom": { "fillOpacity": 15, "lineWidth": 2, "gradientMode": "scheme" },
-              "color": { "mode": "palette-classic" }
-            }
-          },
-          "targets": [{ "expr": "1 - avg(rate(node_cpu_seconds_total{mode=\"idle\", job=~\".*node.*\"}[5m]))", "legendFormat": "CPU Usage", "refId": "A" }]
-        },
-        {
-          "title": "🧠 AI Server — Memory (GB)",
-          "type": "timeseries",
-          "gridPos": { "h": 7, "w": 8, "x": 8, "y": 11 },
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "fieldConfig": {
-            "defaults": {
-              "unit": "decgbytes",
-              "custom": { "fillOpacity": 15, "lineWidth": 2, "gradientMode": "scheme" },
-              "color": { "mode": "palette-classic" }
-            }
-          },
-          "targets": [
-            { "expr": "(node_memory_MemTotal_bytes{job=~\".*node.*\"} - node_memory_MemAvailable_bytes{job=~\".*node.*\"}) / 1024 / 1024 / 1024", "legendFormat": "Used", "refId": "A" },
-            { "expr": "node_memory_MemTotal_bytes{job=~\".*node.*\"} / 1024 / 1024 / 1024", "legendFormat": "Total", "refId": "B" }
-          ]
-        },
-        {
-          "title": "🎮 AI Server — GPU",
-          "type": "timeseries",
-          "gridPos": { "h": 7, "w": 8, "x": 16, "y": 11 },
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "fieldConfig": {
-            "defaults": {
-              "unit": "percent",
-              "min": 0, "max": 100,
-              "custom": { "fillOpacity": 20, "lineWidth": 2, "gradientMode": "scheme" },
-              "color": { "fixedColor": "green", "mode": "fixed" },
-              "noValue": "GPU 수집기 설정 필요"
-            }
-          },
-          "targets": [
-            { "expr": "nvidia_gpu_utilization", "legendFormat": "GPU Util %", "refId": "A" },
-            { "expr": "nvidia_gpu_memory_used_bytes / nvidia_gpu_memory_total_bytes * 100", "legendFormat": "VRAM %", "refId": "B" }
-          ]
-        },
-        {
-          "title": "🌍 HTTP 요청 수 (초당)",
-          "type": "timeseries",
-          "gridPos": { "h": 7, "w": 12, "x": 0, "y": 18 },
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "fieldConfig": {
-            "defaults": {
-              "unit": "reqps",
-              "custom": { "fillOpacity": 10, "lineWidth": 2, "gradientMode": "scheme" },
-              "color": { "mode": "palette-classic" }
-            }
-          },
-          "targets": [{ "expr": "sum(rate(http_server_requests_seconds_count{namespace=\"tutti\"}[5m])) by (uri, method)", "legendFormat": "{{method}} {{uri}}", "refId": "A" }]
-        },
-        {
-          "title": "⏱️ HTTP 응답 P95 (초)",
-          "type": "timeseries",
-          "gridPos": { "h": 7, "w": 12, "x": 12, "y": 18 },
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "fieldConfig": {
-            "defaults": {
-              "unit": "s",
-              "custom": { "fillOpacity": 10, "lineWidth": 2, "gradientMode": "scheme" },
-              "color": { "mode": "palette-classic" }
-            }
-          },
-          "targets": [{ "expr": "histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{namespace=\"tutti\"}[5m])) by (le, uri))", "legendFormat": "P95 {{uri}}", "refId": "A" }]
-        },
-        {
-          "title": "🔌 DB 커넥션 풀 (HikariCP)",
-          "type": "timeseries",
-          "gridPos": { "h": 7, "w": 6, "x": 0, "y": 25 },
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "fieldConfig": {
-            "defaults": {
-              "unit": "short",
-              "custom": { "fillOpacity": 15, "lineWidth": 2 },
-              "color": { "mode": "palette-classic" }
-            }
-          },
-          "targets": [
-            { "expr": "hikaricp_connections_active{namespace=\"tutti\"}", "legendFormat": "Active", "refId": "A" },
-            { "expr": "hikaricp_connections_idle{namespace=\"tutti\"}", "legendFormat": "Idle", "refId": "B" },
-            { "expr": "hikaricp_connections_pending{namespace=\"tutti\"}", "legendFormat": "Pending", "refId": "C" }
-          ]
-        },
-        {
-          "title": "☕ JVM 힙 메모리 (MB)",
-          "type": "timeseries",
-          "gridPos": { "h": 7, "w": 6, "x": 6, "y": 25 },
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "fieldConfig": {
-            "defaults": {
-              "unit": "decmbytes",
-              "custom": { "fillOpacity": 20, "lineWidth": 2, "gradientMode": "scheme" },
-              "color": { "mode": "palette-classic" }
-            }
-          },
-          "targets": [
-            { "expr": "jvm_memory_used_bytes{namespace=\"tutti\", area=\"heap\"} / 1024 / 1024", "legendFormat": "Used ({{id}})", "refId": "A" },
-            { "expr": "jvm_memory_max_bytes{namespace=\"tutti\", area=\"heap\"} / 1024 / 1024", "legendFormat": "Max ({{id}})", "refId": "B" }
-          ]
-        },
-        {
-          "title": "📡 네트워크 트래픽",
-          "type": "timeseries",
-          "gridPos": { "h": 7, "w": 6, "x": 12, "y": 25 },
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "fieldConfig": {
-            "defaults": {
-              "unit": "Bps",
-              "custom": { "fillOpacity": 10, "lineWidth": 2, "gradientMode": "scheme" },
-              "color": { "mode": "palette-classic" }
-            }
-          },
-          "targets": [
-            { "expr": "sum(rate(container_network_receive_bytes_total{namespace=\"tutti\"}[5m]))", "legendFormat": "⬇️ Receive", "refId": "A" },
-            { "expr": "sum(rate(container_network_transmit_bytes_total{namespace=\"tutti\"}[5m]))", "legendFormat": "⬆️ Transmit", "refId": "B" }
-          ]
-        },
-        {
-          "title": "🔑 Redis 연결",
-          "type": "timeseries",
-          "gridPos": { "h": 7, "w": 6, "x": 18, "y": 25 },
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "fieldConfig": {
-            "defaults": {
-              "unit": "short",
-              "custom": { "fillOpacity": 15, "lineWidth": 2 },
-              "color": { "mode": "palette-classic" },
-              "noValue": "메트릭 수집 대기 중"
-            }
-          },
-          "targets": [
-            { "expr": "lettuce_connection_count{namespace=\"tutti\"}", "legendFormat": "Connections", "refId": "A" },
-            { "expr": "lettuce_command_completion_seconds_count{namespace=\"tutti\"}", "legendFormat": "Commands", "refId": "B" }
-          ]
-        },
-        {
-          "title": "📝 Main Server — 에러 로그",
-          "type": "logs",
-          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 32 },
-          "datasource": { "type": "loki", "uid": "loki" },
-          "options": {
-            "showTime": true, "showLabels": false, "wrapLogMessage": true,
-            "enableLogDetails": true, "sortOrder": "Descending", "dedupStrategy": "none"
-          },
-          "targets": [{ "expr": "{namespace=\"tutti\", pod=~\"main-server.*\"} |= \"ERROR\"", "refId": "A" }]
-        },
-        {
-          "title": "🔍 API 접근 로그 (전체 요청)",
-          "type": "logs",
-          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 40 },
-          "datasource": { "type": "loki", "uid": "loki" },
-          "options": {
-            "showTime": true, "showLabels": false, "wrapLogMessage": true,
-            "enableLogDetails": true, "sortOrder": "Descending", "dedupStrategy": "none"
-          },
-          "targets": [{ "expr": "{namespace=\"tutti\", pod=~\"main-server.*\"} | json | message=~\"HTTP (GET|POST|PUT|PATCH|DELETE) .*\"", "refId": "A" }]
-        }
-      ],
-      "refresh": "30s",
-      "schemaVersion": 39,
-      "tags": ["tutti", "overview"],
-      "templating": { "list": [] },
-      "time": { "from": "now-1h", "to": "now" },
-      "timepicker": {},
-      "timezone": "Asia/Seoul",
-      "title": "Tutti — 서비스 Overview",
-      "uid": "tutti-overview",
-      "version": 2
+        "timepicker": {},
+        "timezone": "Asia/Seoul",
+        "title": "Tutti — 서비스 Overview",
+        "uid": "tutti-overview",
+        "version": 5
     }

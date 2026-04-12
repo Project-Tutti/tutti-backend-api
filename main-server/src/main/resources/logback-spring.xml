@@ -3,7 +3,7 @@
      Tutti — Logback Configuration
      ══════════════════════════════════════════════════════════════
      • local/dev: 컬러 콘솔 + 읽기 쉬운 포맷
-     • prod:      JSON 구조화 로그 (Grafana Loki/Promtail 최적화)
+     • prod:      JSON 구조화 로그 (LogstashEncoder — Loki/Promtail 완전 호환)
      ══════════════════════════════════════════════════════════════ -->
 <configuration>
 
@@ -27,14 +27,21 @@
     </springProfile>
 
     <!-- ────────────────────────────────────────────────────
-         Profile: prod — JSON 구조화 로그 (Loki/Promtail 최적화)
+         Profile: prod — JSON 구조화 로그 (LogstashEncoder)
+         ────────────────────────────────────────────────────
+         • 모든 특수 문자(\n, \t, ", \) 완벽 JSON escape
+         • MDC 필드 자동 포함 (httpMethod, requestUri, httpStatus, durationMs 등)
+         • Promtail/Loki에서 필드 기반 필터링 즉시 가능
          ──────────────────────────────────────────────────── -->
     <springProfile name="prod">
         <appender name="JSON_CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
-            <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
-                <!-- JSON 한 줄 포맷: Promtail이 파싱하기 최적화 -->
-                <pattern>{"timestamp":"%d{yyyy-MM-dd'T'HH:mm:ss.SSSZ}","level":"%level","logger":"%logger{36}","thread":"%thread","message":"%replace(%msg){'\"','\\"'}","exception":"%replace(%xException{short}){'\"','\\"'}"}%n</pattern>
-                <charset>UTF-8</charset>
+            <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+                <timeZone>Asia/Seoul</timeZone>
+                <timestampPattern>yyyy-MM-dd'T'HH:mm:ss.SSSZ</timestampPattern>
+                <!-- 불필요한 기본 필드 제외 (Loki 저장 공간 절약) -->
+                <fieldNames>
+                    <version>[ignore]</version>
+                </fieldNames>
             </encoder>
         </appender>
 

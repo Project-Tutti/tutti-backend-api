@@ -7,11 +7,13 @@
 #   • 60초 간격 → 일 1,440회 조회 (쿼리 크레딧 무관)
 #   • Pooler 포트(6543) 경유 → 커넥션 슬롯 미소비
 #
-# ⚠️ 배포 전 시크릿 생성 필요:
+# ⚠️ 배포 전 시크릿 생성 필요 (DSN 전체 문자열로 생성):
 #   kubectl create secret generic supabase-monitor-secret \
 #     --namespace monitoring \
-#     --from-literal=username='YOUR_SUPABASE_DB_USER' \
-#     --from-literal=password='YOUR_SUPABASE_DB_PASSWORD'
+#     --from-literal=data-source-uri='postgresql://USER:PASS@HOST:6543/postgres?sslmode=require'
+#
+# 주의: key 이름은 반드시 'data-source-uri' 이어야 합니다.
+#       Pooler 포트(6543) 경유로 커넥션 슬롯을 소비하지 않습니다.
 #
 ---
 apiVersion: apps/v1

@@ -33,6 +33,7 @@ dependencies {
 
     // ── Monitoring (Prometheus 메트릭 수집) ──
     implementation 'io.micrometer:micrometer-registry-prometheus'
+    implementation 'net.logstash.logback:logstash-logback-encoder:8.0' // JSON 구조화 로그 (Loki/Promtail 완전 호환)
     implementation 'org.springframework.boot:spring-boot-starter-webflux'   // WebClient for AI server calls
     implementation 'org.springframework.boot:spring-boot-starter-data-redis' // Redis: 요청 큐잉 + SSE 멀티 Pod 동기화
 
