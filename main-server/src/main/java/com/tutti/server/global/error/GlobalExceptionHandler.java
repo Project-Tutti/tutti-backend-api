@@ -187,7 +187,7 @@ public class GlobalExceptionHandler {
 
                 Map<String, String> errorResult = Map.of(
                                 "errorCode", ErrorCode.INTERNAL_ERROR.name(),
-                                "details", "예기치 않은 서버 오류가 발생하였습니다.");
+                                "details", "예기치 않은 서버 오류가 발생하였습니다. Error: " + e.getMessage() + " (" + e.getClass().getSimpleName() + ")");
 
                 return ResponseEntity
                                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
