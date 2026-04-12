@@ -13,6 +13,7 @@ import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.util.Map;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /**
  * 전역 예외 처리기 — 모든 Controller에서 발생하는 예외를 일관된 형식으로 변환합니다.
@@ -174,6 +175,21 @@ public class GlobalExceptionHandler {
         }
 
         /**
+         * 잘못된 엔드포인트 매핑 — 없는 URL 호출 시 (Spring Boot 3.2+)
+         * 404 Not Found 반환
+         */
+        @ExceptionHandler(NoResourceFoundException.class)
+        public ResponseEntity<ApiResponse<Map<String, String>>> handleResourceNotFound(NoResourceFoundException e) {
+                Map<String, String> errorResult = Map.of(
+                                "errorCode", "NOT_FOUND",
+                                "details", "요청하신 자원(" + e.getResourcePath() + ")을 찾을 수 없습니다.");
+
+                return ResponseEntity
+                                .status(HttpStatus.NOT_FOUND)
+                                .body(ApiResponse.error("존재하지 않는 엔드포인트입니다.", errorResult));
+        }
+
+        /**
          * 예상치 못한 모든 예외의 최종 방어선 (catch-all).
          *
          * <p>
@@ -187,7 +203,7 @@ public class GlobalExceptionHandler {
 
                 Map<String, String> errorResult = Map.of(
                                 "errorCode", ErrorCode.INTERNAL_ERROR.name(),
-                                "details", "예기치 않은 서버 오류가 발생하였습니다. Error: " + e.getMessage() + " (" + e.getClass().getSimpleName() + ")");
+                                "details", "예기치 않은 서버 오류가 발생하였습니다.");
 
                 return ResponseEntity
                                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
