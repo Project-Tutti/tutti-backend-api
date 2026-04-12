@@ -174,17 +174,15 @@ jobs:
             --from-literal=tunnel-token="${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }}" \
             --dry-run=client -o yaml | kubectl apply -f -
 
-          # 모니터링 네임스페이스 및 시크릿 배포
-          # jdbc:postgresql URL 파싱 및 오류 없는 DSN 포맷 추출
-          export RAW_URL="${{ secrets.SUPABASE_DB_URL }}"
-          export RAW_USER="${{ secrets.SUPABASE_DB_USERNAME }}"
+          # 모니터링 네임스페이스 및 Supabase Pooler 접속 시크릿 배포
+          # ⚠️ Pooler 유저명은 postgres.{project_ref} 형식 (SUPABASE_DB_USERNAME과 다름)
+          export RAW_USER="${{ secrets.SUPABASE_POOLER_USERNAME }}"
           export RAW_PASS="${{ secrets.SUPABASE_DB_PASSWORD }}"
           DATA_SOURCE_URI=$(python3 -c "
           import urllib.parse, os
-          q = urllib.parse.urlparse(os.environ['RAW_URL'].replace('jdbc:postgresql', 'postgresql'))
           user = urllib.parse.quote(os.environ['RAW_USER'])
           password = urllib.parse.quote(os.environ['RAW_PASS'])
-          print(f\"postgresql://{user}:{password}@{q.hostname}:{q.port}/{q.path.strip('/')}?sslmode=require\")
+          print(f'postgresql://{user}:{password}@aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres?sslmode=require')
           ")
           kubectl get namespace monitoring 2>/dev/null || kubectl create namespace monitoring
           kubectl create secret generic supabase-monitor-secret \
