@@ -188,8 +188,9 @@ jobs:
           kustomize edit set image \
             REGION-docker.pkg.dev/PROJECT_ID/tutti/main-server=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build-and-push.outputs.image-tag }}
 
-          # Kustomize build & apply
-          kubectl apply -k .
+          # Kustomize build & server-side apply
+          # 💡 --server-side: HPA가 관리하는 replicas 필드를 덮어쓰지 않음
+          kubectl apply -k . --server-side --force-conflicts
 
       # ── 배포 상태 확인 ──
       - name: Verify deployment

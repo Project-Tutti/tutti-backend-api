@@ -1,6 +1,7 @@
 package com.tutti.server.domain.project.service;
 
 import com.tutti.server.domain.instrument.repository.InstrumentCategoryRepository;
+import com.tutti.server.domain.instrument.repository.InstrumentRepository;
 import com.tutti.server.domain.project.dto.request.MappingItem;
 import com.tutti.server.domain.project.dto.request.ProjectRenameRequest;
 import com.tutti.server.domain.project.dto.request.RegenerateRequest;
@@ -53,6 +54,8 @@ class ProjectServiceTest {
     private ProfileRepository profileRepository;
     @Mock
     private InstrumentCategoryRepository categoryRepository;
+    @Mock
+    private InstrumentRepository instrumentRepository;
     @Mock
     private ArrangementService arrangementService;
     @Mock

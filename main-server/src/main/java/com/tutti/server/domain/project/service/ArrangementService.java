@@ -12,8 +12,10 @@ import com.tutti.server.infra.ai.dto.AiArrangeRequest;
 import com.tutti.server.infra.ai.dto.AiCallbackPayload;
 import com.tutti.server.infra.converter.ConverterService;
 import com.tutti.server.infra.storage.SupabaseStorageService;
+import com.tutti.server.domain.instrument.entity.Instrument;
 import com.tutti.server.domain.instrument.entity.InstrumentCategory;
 import com.tutti.server.domain.instrument.repository.InstrumentCategoryRepository;
+import com.tutti.server.domain.instrument.repository.InstrumentRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -92,6 +94,7 @@ public class ArrangementService {
     private final SupabaseStorageService storageService;
     private final ConverterService converterService;
     private final InstrumentCategoryRepository categoryRepository;
+    private final InstrumentRepository instrumentRepository;
 
     @Value("${ai.server.callback-base-url}")
     private String callbackBaseUrl;
@@ -233,14 +236,18 @@ public class ArrangementService {
                 SupabaseStorageService.BUCKET_MIDI, project.getMidiFilePath());
 
         // 3. 카테고리 기반 modelType 결정
-        String modelType = resolveModelType(version.getInstrumentId());
+        Integer categoryProgram = resolveCategoryProgram(version.getInstrumentId());
+        String modelType = resolveModelType(categoryProgram);
+        String instrumentName = resolveInstrumentName(version.getInstrumentId());
 
         AiArrangeRequest request = AiArrangeRequest.builder()
                 .projectId(project.getId())
                 .versionId(version.getId())
                 .midiFilePath(midiUrl)
                 .mappings(mappingDataList)
-                .targetInstrumentId(version.getInstrumentId())
+                .targetInstrumentId(categoryProgram)
+                .targetInstrumentName(instrumentName)
+                .targetMidiProgram(version.getInstrumentId())
                 .minNote(version.getMinNote())
                 .maxNote(version.getMaxNote())
                 .modelType(modelType)
@@ -640,5 +647,39 @@ public class ArrangementService {
                 .map(InstrumentCategory::getName)
                 .map(name -> name.toLowerCase().replace(" ", "_"))
                 .orElse("default");
+    }
+
+    /**
+     * 개별 악기 ID → 소속 카테고리의 representative_program으로 변환합니다.
+     * 이미 카테고리 대표값이면 그대로 반환합니다.
+     *
+     * <p>
+     * 예: 41(Viola) → 40(Solo String), 40(Violin) → 40
+     * </p>
+     */
+    private Integer resolveCategoryProgram(Integer instrumentId) {
+        if (instrumentId == null) return null;
+        // 이미 카테고리 대표값이면 그대로 반환
+        if (categoryRepository.existsById(instrumentId)) {
+            return instrumentId;
+        }
+        // 개별 악기 → 카테고리 대표값
+        return instrumentRepository.findById(instrumentId)
+                .map(i -> i.getCategory().getRepresentativeProgram())
+                .orElse(instrumentId);
+    }
+
+    /**
+     * 악기 ID → 실제 악기 이름을 반환합니다.
+     * 개별 악기 ID면 해당 악기의 이름("Viola"), 카테고리 대표값이면 카테고리명("Solo String")을 반환.
+     */
+    private String resolveInstrumentName(Integer instrumentId) {
+        if (instrumentId == null) return null;
+        // 먼저 개별 악기에서 찾기
+        return instrumentRepository.findById(instrumentId)
+                .map(Instrument::getName)
+                .orElseGet(() -> categoryRepository.findById(instrumentId)
+                        .map(InstrumentCategory::getName)
+                        .orElse("Unknown"));
     }
 }

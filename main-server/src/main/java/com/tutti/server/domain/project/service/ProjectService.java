@@ -1,6 +1,8 @@
 package com.tutti.server.domain.project.service;
 
+import com.tutti.server.domain.instrument.entity.Instrument;
 import com.tutti.server.domain.instrument.repository.InstrumentCategoryRepository;
+import com.tutti.server.domain.instrument.repository.InstrumentRepository;
 import com.tutti.server.domain.project.dto.request.*;
 import com.tutti.server.domain.project.dto.response.*;
 import com.tutti.server.domain.project.entity.*;
@@ -66,6 +68,7 @@ public class ProjectService {
     private final VersionMappingRepository mappingRepository;
     private final ProfileRepository profileRepository;
     private final InstrumentCategoryRepository categoryRepository;
+    private final InstrumentRepository instrumentRepository;
     private final ArrangementService arrangementService;
     private final SupabaseStorageService storageService;
 
@@ -613,11 +616,29 @@ public class ProjectService {
      * 생성 대상 악기가 AI 편곡 가능한(generatable) 카테고리인지 검증합니다.
      * null이면 검증을 건너뜁니다 (optional 필드).
      *
-     * @throws BusinessException UNSUPPORTED_INSTRUMENT — generatable이 아닌 카테고리
+     * <p>
+     * <b>2단 검증:</b>
+     * </p>
+     * <ol>
+     * <li>카테고리 대표값(representative_program)으로 직접 매칭 — 기존 동작 유지</li>
+     * <li>개별 악기 ID(MIDI program) → 소속 카테고리의 generatable 확인</li>
+     * </ol>
+     *
+     * @throws BusinessException UNSUPPORTED_INSTRUMENT — generatable이 아닌 카테고리이거나 존재하지 않는 악기
      */
     private void validateGeneratableInstrument(Integer instrumentId) {
         if (instrumentId == null) return;
-        if (!categoryRepository.existsByRepresentativeProgramAndGeneratableTrue(instrumentId)) {
+
+        // 1단: 카테고리 대표값으로 직접 매칭 (기존 동작 유지)
+        if (categoryRepository.existsByRepresentativeProgramAndGeneratableTrue(instrumentId)) {
+            return;
+        }
+
+        // 2단: 개별 악기 ID → 활성화 여부 및 소속 카테고리의 generatable 확인
+        Instrument instrument = instrumentRepository.findById(instrumentId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.UNSUPPORTED_INSTRUMENT));
+                
+        if (!instrument.isActive() || !instrument.getCategory().isGeneratable()) {
             throw new BusinessException(ErrorCode.UNSUPPORTED_INSTRUMENT);
         }
     }

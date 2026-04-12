@@ -2,6 +2,7 @@ package com.tutti.server.domain.project.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tutti.server.domain.instrument.repository.InstrumentCategoryRepository;
+import com.tutti.server.domain.instrument.repository.InstrumentRepository;
 import com.tutti.server.domain.project.entity.ProjectVersion;
 import com.tutti.server.domain.project.repository.ProjectVersionRepository;
 import com.tutti.server.domain.project.repository.VersionMappingRepository;
@@ -49,6 +50,8 @@ class ArrangementServiceTest {
     private ConverterService converterService;
     @Mock
     private InstrumentCategoryRepository categoryRepository;
+    @Mock
+    private InstrumentRepository instrumentRepository;
 
     // ══════════════════════════════════════
     // handleCallbackWithFile() — Multipart 완료 콜백

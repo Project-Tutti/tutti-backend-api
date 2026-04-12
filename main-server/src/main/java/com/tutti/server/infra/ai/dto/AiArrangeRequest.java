@@ -30,8 +30,14 @@ public class AiArrangeRequest {
     private String midiFilePath;
     private List<MappingData> mappings;
 
-    /** 생성 대상 카테고리의 representative_program. */
+    /** 생성 대상 카테고리의 representative_program (AI 모델 추론용). */
     private Integer targetInstrumentId;
+
+    /** 실제 악기 이름 (예: "Viola"). MIDI 결과 트랙 명칭에 사용. */
+    private String targetInstrumentName;
+
+    /** 실제 MIDI program 번호 (예: 41=Viola). MIDI program_change에 사용. */
+    private Integer targetMidiProgram;
 
     /** 생성 음역대 하한 (MIDI 0~127). null이면 AI 서버에서 기본값 사용. */
     private Integer minNote;
