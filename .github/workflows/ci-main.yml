@@ -250,7 +250,7 @@ jobs:
           echo "$CHANGED" | grep -q "promtail-values.yaml" && echo "promtail=true" >> "$GITHUB_OUTPUT" || true
 
           # kubectl manifest 변경 감지
-          echo "$CHANGED" | grep -qE "(servicemonitor|exporter|alert-rules|namespace|dashboards/)" && echo "manifests=true" >> "$GITHUB_OUTPUT" || true
+          echo "$CHANGED" | grep -qE "(servicemonitor|exporter|alert-rules|namespace|dashboards/|loki-datasource)" && echo "manifests=true" >> "$GITHUB_OUTPUT" || true
 
       - name: Setup Helm
         if: steps.mon.outputs.prometheus || steps.mon.outputs.loki || steps.mon.outputs.promtail
