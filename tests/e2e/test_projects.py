@@ -71,7 +71,7 @@ def test_project_happy_path(base_url, session, auth_headers, dummy_midi_file):
     
     # 3. 다운로드 링크 확인
     dl_res = session.get(f"{base_url}/projects/{project_id}/versions/{version_id}/download?type=midi", headers=auth_headers)
-    assert dl_res.status_code == 200
+    assert dl_res.status_code == 200, f"다운로드 에러: {dl_res.text}"
     dl_data = dl_res.json()
     assert dl_data["isSuccess"] is True
     # Signed URL이 반환되는지 확인
