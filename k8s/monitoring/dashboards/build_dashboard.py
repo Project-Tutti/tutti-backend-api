@@ -214,7 +214,7 @@ def create_dashboard():
     ])
     panel_id += 4
 
-    # ── Template Variables: 모듈 선택 + 키워드 검색 + 레벨 필터 ──
+    # ── Template Variables: 모듈 선택 ──
     dashboard["templating"]["list"] = [
         {
             "name": "log_module",
@@ -241,26 +241,18 @@ def create_dashboard():
             "hide": 0,
             "includeAll": False,
             "multi": False,
-        },
-        {
-            "name": "log_search",
-            "label": "🔍 로그 검색",
-            "type": "textbox",
-            "current": {"text": "", "value": ""},
-            "options": [],
-            "hide": 0
         }
     ]
 
 
     # Row 4: Live Logs — 포커스 뷰
-    add_row("📋 실시간 로그 (↑ 상단 드롭다운에서 모듈·검색어 선택)", 40)
+    add_row("📋 실시간 로그 (↑ 상단 드롭다운에서 모듈 선택 / 패널 내 Ctrl+F로 검색)", 40)
 
     loki_ds = {"type": "loki", "uid": "loki"}
     log_opts = {"showTime": True, "showLabels": True, "wrapLogMessage": True,
                 "enableLogDetails": True, "sortOrder": "Descending", "prettifyLogMessage": True}
 
-    # 포커스 패널 (단일, 크게) — $log_module이 쿼리 자체
+    # 포커스 패널 — $log_module이 쿼리 자체 (|= 없이 깨끗한 쿼리)
     dashboard["panels"].append({
         "title": "🔎 실시간 로그 포커스 뷰",
         "type": "logs",
@@ -269,7 +261,7 @@ def create_dashboard():
         "datasource": loki_ds,
         "options": log_opts,
         "targets": [{
-            "expr": '$log_module |= `$log_search`',
+            "expr": '$log_module',
             "refId": "A"
         }],
     })

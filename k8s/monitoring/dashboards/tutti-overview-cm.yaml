@@ -477,7 +477,7 @@ data:
                 },
                 "id": 12,
                 "panels": [],
-                "title": "📋 실시간 로그 (↑ 상단 드롭다운에서 모듈·검색어 선택)",
+                "title": "📋 실시간 로그 (↑ 상단 드롭다운에서 모듈 선택 / 패널 내 Ctrl+F로 검색)",
                 "type": "row"
             },
             {
@@ -504,7 +504,7 @@ data:
                 },
                 "targets": [
                     {
-                        "expr": "$log_module |= `$log_search`",
+                        "expr": "$log_module",
                         "refId": "A"
                     }
                 ]
@@ -558,17 +558,6 @@ data:
                     "hide": 0,
                     "includeAll": false,
                     "multi": false
-                },
-                {
-                    "name": "log_search",
-                    "label": "🔍 로그 검색",
-                    "type": "textbox",
-                    "current": {
-                        "text": "",
-                        "value": ""
-                    },
-                    "options": [],
-                    "hide": 0
                 }
             ]
         },

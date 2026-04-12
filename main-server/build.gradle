@@ -30,6 +30,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.springframework.boot:spring-boot-starter-aop'        // Observation API 활성화 (HTTP 메트릭 필수)
 
     // ── Monitoring (Prometheus 메트릭 수집) ──
     implementation 'io.micrometer:micrometer-registry-prometheus'
