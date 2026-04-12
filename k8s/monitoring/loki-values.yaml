@@ -45,6 +45,7 @@ loki:
   # 로그 삭제 스케줄러
   compactor:
     retention_enabled: true
+    delete_request_store: filesystem
 
   commonConfig:
     replication_factor: 1
