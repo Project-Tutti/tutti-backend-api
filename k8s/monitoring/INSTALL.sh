@@ -10,16 +10,9 @@
 # ── 1. 네임스페이스 생성 ──
 kubectl apply -f namespace.yaml
 
-# ── 2. 시크릿 생성 (실제 값으로 변경하세요) ──
-kubectl create secret generic supabase-monitor-secret \
-  --namespace monitoring \
-  --from-literal=username='YOUR_SUPABASE_DB_USER' \
-  --from-literal=password='YOUR_SUPABASE_DB_PASSWORD'
-
-kubectl create secret generic remote-write-auth \
-  --namespace monitoring \
-  --from-literal=username='school-server' \
-  --from-literal=password='YOUR_STRONG_PASSWORD'
+# ── 2. 시크릿 확인 ──
+# (참고: CI/CD가 구동될 때 GitHub Secrets를 통해 자동으로 생성됩니다.)
+kubectl get secret supabase-monitor-secret -n monitoring
 
 # ── 3. Helm 차트 설치 ──
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
