@@ -118,15 +118,24 @@ public class SupabaseStorageService {
 
         // 응답: { "signedURL": "/storage/v1/object/sign/bucket/path?token=..." }
         // signedURL은 상대 경로이므로 Supabase URL을 앞에 붙여야 함
-        if (response != null && response.contains("signedURL")) {
-            String signedPath = response.split("\"signedURL\"\\s*:\\s*\"")[1].split("\"")[0];
-            // Supabase API가 /storage/v1을 생략해서 반환하므로 절대 경로에 보정
-            if (!signedPath.startsWith("/storage/v1")) {
-                signedPath = "/storage/v1" + signedPath;
+        if (response != null) {
+            String urlKeyExtractor = null;
+            if (response.contains("signedURL")) {
+                urlKeyExtractor = "\"signedURL\"\\s*:\\s*\"";
+            } else if (response.contains("signedUrl")) {
+                urlKeyExtractor = "\"signedUrl\"\\s*:\\s*\"";
             }
-            return supabaseUrl + signedPath;
+            
+            if (urlKeyExtractor != null) {
+                String signedPath = response.split(urlKeyExtractor)[1].split("\"")[0];
+                // Supabase API가 /storage/v1을 생략해서 반환하므로 절대 경로에 보정
+                if (!signedPath.startsWith("/storage/v1")) {
+                    signedPath = "/storage/v1" + signedPath;
+                }
+                return supabaseUrl + signedPath;
+            }
         }
 
-        throw new RuntimeException("Supabase Signed URL 생성에 실패했습니다.");
+        throw new RuntimeException("Supabase Signed URL 생성에 실패했습니다. (Response: " + response + ")");
     }
 }
