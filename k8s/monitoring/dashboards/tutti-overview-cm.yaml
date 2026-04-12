@@ -200,11 +200,6 @@ data:
                         "expr": "sum(kube_pod_container_resource_limits{namespace=\"tutti\", container=\"main-server\", resource=\"cpu\"})",
                         "legendFormat": "Main Server CPU 한도(Limit)",
                         "refId": "B"
-                    },
-                    {
-                        "expr": "sum(rate(container_cpu_usage_seconds_total{pod=~\"ai-.*\"}[1m]))",
-                        "legendFormat": "AI Server CPU 사용",
-                        "refId": "C"
                     }
                 ]
             },
@@ -248,11 +243,6 @@ data:
                         "expr": "sum(kube_pod_container_resource_limits{namespace=\"tutti\", container=\"main-server\", resource=\"memory\"})",
                         "legendFormat": "Main RAM 한도(Limit)",
                         "refId": "B"
-                    },
-                    {
-                        "expr": "sum(container_memory_working_set_bytes{pod=~\"ai-.*\"})",
-                        "legendFormat": "AI RAM 사용",
-                        "refId": "C"
                     }
                 ]
             },
@@ -381,8 +371,8 @@ data:
                 },
                 "targets": [
                     {
-                        "expr": "histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{namespace=\"tutti\"}[1m])) by (le, method))",
-                        "legendFormat": "{{method}} latency",
+                        "expr": "histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{namespace=\"tutti\"}[5m])) by (le))",
+                        "legendFormat": "p95 latency",
                         "refId": "A"
                     }
                 ]
@@ -487,15 +477,15 @@ data:
                 },
                 "id": 12,
                 "panels": [],
-                "title": "📋 4대 모듈 실시간 로그 (Live Logs)",
+                "title": "📋 실시간 로그 (↑ 상단 드롭다운에서 모듈·검색어 선택)",
                 "type": "row"
             },
             {
-                "title": "📝 Main Server 로그 (App Log)",
+                "title": "🔎 실시간 로그 포커스 뷰",
                 "type": "logs",
                 "id": 13,
                 "gridPos": {
-                    "h": 10,
+                    "h": 25,
                     "w": 24,
                     "x": 0,
                     "y": 41
@@ -506,98 +496,15 @@ data:
                 },
                 "options": {
                     "showTime": true,
-                    "showLabels": false,
+                    "showLabels": true,
                     "wrapLogMessage": true,
                     "enableLogDetails": true,
-                    "sortOrder": "Descending"
+                    "sortOrder": "Descending",
+                    "prettifyLogMessage": true
                 },
                 "targets": [
                     {
-                        "expr": "{namespace=\"tutti\", pod=~\"main-server.*\"} != \"HTTP (\"",
-                        "refId": "A"
-                    }
-                ]
-            },
-            {
-                "title": "🔍 Main Server 로그 (API Log)",
-                "type": "logs",
-                "id": 14,
-                "gridPos": {
-                    "h": 10,
-                    "w": 24,
-                    "x": 0,
-                    "y": 51
-                },
-                "datasource": {
-                    "type": "loki",
-                    "uid": "loki"
-                },
-                "options": {
-                    "showTime": true,
-                    "showLabels": false,
-                    "wrapLogMessage": true,
-                    "enableLogDetails": true,
-                    "sortOrder": "Descending"
-                },
-                "targets": [
-                    {
-                        "expr": "{namespace=\"tutti\", pod=~\"main-server.*\"} |= \"HTTP (\"",
-                        "refId": "A"
-                    }
-                ]
-            },
-            {
-                "title": "🧠 AI Server 로그",
-                "type": "logs",
-                "id": 15,
-                "gridPos": {
-                    "h": 10,
-                    "w": 24,
-                    "x": 0,
-                    "y": 61
-                },
-                "datasource": {
-                    "type": "loki",
-                    "uid": "loki"
-                },
-                "options": {
-                    "showTime": true,
-                    "showLabels": false,
-                    "wrapLogMessage": true,
-                    "enableLogDetails": true,
-                    "sortOrder": "Descending"
-                },
-                "targets": [
-                    {
-                        "expr": "{namespace=\"tutti\", pod=~\"ai-worker.*\"}",
-                        "refId": "A"
-                    }
-                ]
-            },
-            {
-                "title": "🔄 Converter Server 로그",
-                "type": "logs",
-                "id": 16,
-                "gridPos": {
-                    "h": 10,
-                    "w": 24,
-                    "x": 0,
-                    "y": 71
-                },
-                "datasource": {
-                    "type": "loki",
-                    "uid": "loki"
-                },
-                "options": {
-                    "showTime": true,
-                    "showLabels": false,
-                    "wrapLogMessage": true,
-                    "enableLogDetails": true,
-                    "sortOrder": "Descending"
-                },
-                "targets": [
-                    {
-                        "expr": "{namespace=\"tutti\", pod=~\"converter.*\"} != \"health\"",
+                        "expr": "$log_module |= `$log_search`",
                         "refId": "A"
                     }
                 ]
@@ -611,7 +518,59 @@ data:
             "kubernetes"
         ],
         "templating": {
-            "list": []
+            "list": [
+                {
+                    "name": "log_module",
+                    "label": "📋 로그 모듈",
+                    "type": "custom",
+                    "query": "📝 Main Server (App) : {namespace=\"tutti\"\\, pod=~\"main-server.*\"} != \"HTTP (\", 🔍 Main Server (API) : {namespace=\"tutti\"\\, pod=~\"main-server.*\"} |= \"HTTP (\", 🧠 AI Server : {container=~\".*ai.*\"} != \"복구할 Pending 메시지 없음\", 🔄 Converter : {namespace=\"tutti\"\\, pod=~\"converter.*\"} != \"GET /health\", 🌐 Cloudflared : {namespace=\"tutti\"\\, pod=~\"cloudflared.*\"}",
+                    "current": {
+                        "text": "📝 Main Server (App)",
+                        "value": "{namespace=\"tutti\", pod=~\"main-server.*\"} != \"HTTP (\""
+                    },
+                    "options": [
+                        {
+                            "text": "📝 Main Server (App)",
+                            "value": "{namespace=\"tutti\", pod=~\"main-server.*\"} != \"HTTP (\"",
+                            "selected": true
+                        },
+                        {
+                            "text": "🔍 Main Server (API)",
+                            "value": "{namespace=\"tutti\", pod=~\"main-server.*\"} |= \"HTTP (\"",
+                            "selected": false
+                        },
+                        {
+                            "text": "🧠 AI Server",
+                            "value": "{container=~\".*ai.*\"} != \"복구할 Pending 메시지 없음\"",
+                            "selected": false
+                        },
+                        {
+                            "text": "🔄 Converter",
+                            "value": "{namespace=\"tutti\", pod=~\"converter.*\"} != \"GET /health\"",
+                            "selected": false
+                        },
+                        {
+                            "text": "🌐 Cloudflared",
+                            "value": "{namespace=\"tutti\", pod=~\"cloudflared.*\"}",
+                            "selected": false
+                        }
+                    ],
+                    "hide": 0,
+                    "includeAll": false,
+                    "multi": false
+                },
+                {
+                    "name": "log_search",
+                    "label": "🔍 로그 검색",
+                    "type": "textbox",
+                    "current": {
+                        "text": "",
+                        "value": ""
+                    },
+                    "options": [],
+                    "hide": 0
+                }
+            ]
         },
         "time": {
             "from": "now-3h",

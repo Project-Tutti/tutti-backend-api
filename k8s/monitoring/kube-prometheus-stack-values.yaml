@@ -79,13 +79,8 @@ grafana:
   persistence:
     enabled: false
 
-  # Loki 데이터소스 자동 프로비저닝
-  additionalDataSources:
-    - name: Loki
-      type: loki
-      access: proxy
-      url: http://loki.monitoring:3100
-      isDefault: false
+  # Loki 데이터소스는 loki-datasource-cm.yaml ConfigMap으로 관리
+  # (deleteDatasources + uid: loki 고정)
 
   # Grafana 서비스 타입 (ClusterIP — CF Tunnel로 외부 노출)
   service:
