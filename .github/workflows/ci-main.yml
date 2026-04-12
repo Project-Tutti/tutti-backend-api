@@ -174,12 +174,15 @@ jobs:
             --from-literal=tunnel-token="${{ secrets.CLOUDFLARE_TUNNEL_TOKEN }}" \
             --dry-run=client -o yaml | kubectl apply -f -
 
-          # ── 모니터링 네임스페이스 및 시크릿 배포 ──
+          # 모니터링 네임스페이스 및 시크릿 배포
+          # jdbc:postgresql://을 postgres:// 형식으로 자동 변환하여 Exporter용 통일
+          DATA_SOURCE_URI=$(echo "${{ secrets.SUPABASE_DB_URL }}" | sed 's/jdbc:postgresql/postgres/g')
           kubectl get namespace monitoring 2>/dev/null || kubectl create namespace monitoring
           kubectl create secret generic supabase-monitor-secret \
             --namespace=monitoring \
             --from-literal=username="${{ secrets.SUPABASE_DB_USERNAME }}" \
             --from-literal=password="${{ secrets.SUPABASE_DB_PASSWORD }}" \
+            --from-literal=data-source-uri="$DATA_SOURCE_URI" \
             --dry-run=client -o yaml | kubectl apply -f -
 
       # ── 네임스페이스 확인 (리소스 배포 전 반드시 존재해야 함) ──
