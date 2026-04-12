@@ -1,0 +1,79 @@
+# ══════════════════════════════════════════════════════════════
+# Grafana Loki — Helm values (SingleBinary 경량 모드)
+# ══════════════════════════════════════════════════════════════
+#
+# 설치 명령:
+#   helm repo add grafana https://grafana.github.io/helm-charts
+#   helm repo update
+#   helm install loki grafana/loki \
+#     --namespace monitoring \
+#     -f loki-values.yaml
+#
+# Promtail은 별도 설치:
+#   helm install promtail grafana/promtail \
+#     --namespace monitoring \
+#     -f promtail-values.yaml
+#
+# ══════════════════════════════════════════════════════════════
+
+# SingleBinary 모드: 단일 Pod로 Loki 전체 기능 운영
+deploymentMode: SingleBinary
+
+loki:
+  # 인증 비활성화 (클러스터 내부 전용)
+  auth_enabled: false
+
+  storage:
+    type: filesystem
+
+  # 보존 기간: 48시간
+  limits_config:
+    retention_period: 48h
+    # 학교 서버에서 Push 허용
+    allow_structured_metadata: true
+
+  # 로그 삭제 스케줄러
+  compactor:
+    retention_enabled: true
+
+  commonConfig:
+    replication_factor: 1
+
+singleBinary:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 200Mi
+    limits:
+      cpu: 300m
+      memory: 400Mi
+  persistence:
+    enabled: true
+    size: 5Gi
+    storageClass: standard
+
+# 청크 캐시/결과 캐시 비활성화 (메모리 절약)
+chunksCache:
+  enabled: false
+resultsCache:
+  enabled: false
+
+# Gateway 비활성화 (SingleBinary에서는 불필요)
+gateway:
+  enabled: false
+
+# Monitoring (자체 모니터링 비활성화)
+monitoring:
+  selfMonitoring:
+    enabled: false
+  lokiCanary:
+    enabled: false
+
+# Backend/Read/Write (SingleBinary이므로 모두 비활성화)
+backend:
+  replicas: 0
+read:
+  replicas: 0
+write:
+  replicas: 0

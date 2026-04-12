@@ -1,0 +1,35 @@
+# ══════════════════════════════════════════════════════════════
+# Promtail — Helm values (GKE Pod 로그 수집)
+# ══════════════════════════════════════════════════════════════
+#
+# 설치 명령:
+#   helm install promtail grafana/promtail \
+#     --namespace monitoring \
+#     -f promtail-values.yaml
+#
+# ══════════════════════════════════════════════════════════════
+
+config:
+  clients:
+    - url: http://loki.monitoring:3100/loki/api/v1/push
+  # 로그 라벨 자동 부여
+  snippets:
+    pipelineStages:
+      # JSON 포맷 로그 자동 파싱 (prod 프로필 logback-spring.xml 출력물)
+      - docker: {}
+      - json:
+          expressions:
+            level: level
+            logger: logger
+            message: message
+      - labels:
+          level:
+          logger:
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 100m
+    memory: 128Mi

@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- ══════════════════════════════════════════════════════════════
+     Tutti — Logback Configuration
+     ══════════════════════════════════════════════════════════════
+     • local/dev: 컬러 콘솔 + 읽기 쉬운 포맷
+     • prod:      JSON 구조화 로그 (Grafana Loki/Promtail 최적화)
+     ══════════════════════════════════════════════════════════════ -->
+<configuration>
+
+    <property name="APP_NAME" value="tutti-main-server"/>
+
+    <!-- ────────────────────────────────────────────────────
+         Profile: local, dev — 컬러 콘솔 포맷
+         ──────────────────────────────────────────────────── -->
+    <springProfile name="local | dev">
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder>
+                <!-- 타임스탬프(HH:mm:ss) | 로그레벨 | 스레드 | 클래스.메서드 | 메시지 -->
+                <pattern>%d{HH:mm:ss.SSS} %highlight(%-5level) %cyan([%-15.15thread]) %boldYellow(%-40.40logger{39}) %msg%n</pattern>
+                <charset>UTF-8</charset>
+            </encoder>
+        </appender>
+
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+    </springProfile>
+
+    <!-- ────────────────────────────────────────────────────
+         Profile: prod — JSON 구조화 로그 (Loki/Promtail 최적화)
+         ──────────────────────────────────────────────────── -->
+    <springProfile name="prod">
+        <appender name="JSON_CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+                <!-- JSON 한 줄 포맷: Promtail이 파싱하기 최적화 -->
+                <pattern>{"timestamp":"%d{yyyy-MM-dd'T'HH:mm:ss.SSSZ}","level":"%level","logger":"%logger{36}","thread":"%thread","message":"%replace(%msg){'\"','\\"'}","exception":"%replace(%xException{short}){'\"','\\"'}"}%n</pattern>
+                <charset>UTF-8</charset>
+            </encoder>
+        </appender>
+
+        <root level="WARN">
+            <appender-ref ref="JSON_CONSOLE"/>
+        </root>
+
+        <!-- 애플리케이션 로그는 INFO 이상 -->
+        <logger name="com.tutti.server" level="INFO" additivity="false">
+            <appender-ref ref="JSON_CONSOLE"/>
+        </logger>
+    </springProfile>
+
+</configuration>

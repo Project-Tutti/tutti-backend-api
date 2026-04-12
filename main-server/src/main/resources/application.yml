@@ -45,15 +45,22 @@ server:
   port: 8080
   shutdown: graceful
 
-# ── Actuator ──
+# ── Actuator & Monitoring ──
 management:
+  server:
+    port: 8081
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: health,info,metrics,prometheus
   endpoint:
     health:
       show-details: when_authorized
+    prometheus:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
 
 # ── JWT Configuration ──
 jwt:
@@ -109,7 +116,9 @@ logging:
   level:
     root: INFO
     com.tutti.server: DEBUG
-    org.hibernate.SQL: DEBUG
+    org.hibernate.SQL: WARN
+    org.hibernate.type.descriptor.sql: WARN
+    org.springframework.web: WARN
 
 ---
 # ══════════════════════════════════════════════════════════════
@@ -127,6 +136,10 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update # 로컬에서는 스키마 자동 업데이트
+
+logging:
+  level:
+    org.hibernate.SQL: DEBUG   # 로컬에서만 SQL 로그 활성화
 
 ---
 # ══════════════════════════════════════════════════════════════
@@ -187,3 +200,5 @@ logging:
   level:
     root: WARN
     com.tutti.server: INFO
+    org.hibernate: WARN
+    org.springframework: WARN

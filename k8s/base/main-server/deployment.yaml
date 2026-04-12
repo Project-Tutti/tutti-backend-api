@@ -38,9 +38,6 @@ spec:
       containers:
         - name: main-server
           image: REGION-docker.pkg.dev/PROJECT_ID/tutti/main-server:latest
-          ports:
-            - containerPort: 8080
-              protocol: TCP
           env:
             - name: SPRING_PROFILES_ACTIVE
               value: "prod"
@@ -159,24 +156,29 @@ spec:
             limits:
               cpu: "1000m"
               memory: "768Mi"   # Spring Boot 앱에 충분한 메모리
+          ports:
+            - containerPort: 8080
+              name: http
+            - containerPort: 8081
+              name: management
           livenessProbe:
             httpGet:
               path: /actuator/health
-              port: 8080
+              port: 8081
             initialDelaySeconds: 60
             periodSeconds: 30
             failureThreshold: 3
           readinessProbe:
             httpGet:
               path: /actuator/health
-              port: 8080
+              port: 8081
             initialDelaySeconds: 30
             periodSeconds: 10
             failureThreshold: 3
           startupProbe:
             httpGet:
               path: /actuator/health
-              port: 8080
+              port: 8081
             initialDelaySeconds: 10
             periodSeconds: 5
             failureThreshold: 30

@@ -30,6 +30,9 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
+
+    // ── Monitoring (Prometheus 메트릭 수집) ──
+    implementation 'io.micrometer:micrometer-registry-prometheus'
     implementation 'org.springframework.boot:spring-boot-starter-webflux'   // WebClient for AI server calls
     implementation 'org.springframework.boot:spring-boot-starter-data-redis' // Redis: 요청 큐잉 + SSE 멀티 Pod 동기화
 

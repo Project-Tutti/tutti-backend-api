@@ -64,8 +64,8 @@ public class SecurityConfig {
                                                                 "/api/auth/check-email",
                                                                 "/api/instruments/**")
                                                 .permitAll()
-                                                // ── Actuator Health ──
-                                                .requestMatchers("/actuator/health").permitAll()
+                                                // ── Actuator (클러스터 내부에서만 접근 — CF Tunnel에서 /actuator/* 차단) ──
+                                                .requestMatchers("/actuator/health", "/actuator/prometheus").permitAll()
                                                 // ── Swagger UI ──
                                                 .requestMatchers(
                                                                 "/swagger-ui/**",

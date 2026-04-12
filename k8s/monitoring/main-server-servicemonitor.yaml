@@ -1,0 +1,25 @@
+# ══════════════════════════════════════════════════════════════
+# ServiceMonitor — Main Server (Spring Boot Actuator/Micrometer)
+# ══════════════════════════════════════════════════════════════
+# Prometheus가 main-server Pod들의 /actuator/prometheus 엔드포인트를
+# 자동으로 감지하고 30초 간격으로 스크래핑합니다.
+#
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: main-server
+  namespace: monitoring
+  labels:
+    app: main-server
+    release: prometheus   # kube-prometheus-stack이 이 라벨로 ServiceMonitor를 검색
+spec:
+  namespaceSelector:
+    matchNames:
+      - tutti              # main-server가 있는 네임스페이스
+  selector:
+    matchLabels:
+      app: main-server     # main-server Service의 라벨과 매칭
+  endpoints:
+    - port: management   # service.yaml의 Actuator 전용 포트 이름
+      path: /actuator/prometheus
+      interval: 30s

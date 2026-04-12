@@ -1,0 +1,127 @@
+# ══════════════════════════════════════════════════════════════
+# kube-prometheus-stack — Helm values (리소스 최적화)
+# ══════════════════════════════════════════════════════════════
+#
+# 설치 명령:
+#   helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+#   helm repo update
+#   helm install prometheus prometheus-community/kube-prometheus-stack \
+#     --namespace monitoring --create-namespace \
+#     -f kube-prometheus-stack-values.yaml
+#
+# ⚠️ GKE e2-medium 2노드 환경에 최적화된 경량 설정입니다.
+#    노드 확장 시 리소스 limits를 상향 조정하세요.
+# ══════════════════════════════════════════════════════════════
+
+# ── Prometheus Server ──
+prometheus:
+  prometheusSpec:
+    # 데이터 보존: 48시간 또는 3GB 초과 시 자동 삭제
+    retention: 48h
+    retentionSize: "3GB"
+
+    # 리소스 제한 (e2-medium 환경 최적화)
+    resources:
+      requests:
+        cpu: 200m
+        memory: 400Mi
+      limits:
+        cpu: 500m
+        memory: 800Mi
+
+    # PVC: 5GB pd-standard (≈$0.20/월)
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: standard
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 5Gi
+
+    # 학교 서버 Remote Write 수신 활성화
+    enableRemoteWriteReceiver: true
+
+    # 스크래핑 주기 (기본 30s → 모니터링 부하 감소)
+    scrapeInterval: 30s
+    evaluationInterval: 30s
+
+  # GKE에서는 node-exporter 불필요 (SYSTEM_COMPONENTS 모니터링이 커버)
+  nodeExporter:
+    enabled: false
+
+  # prometheus-node-exporter subchart도 비활성화
+  prometheus-node-exporter:
+    enabled: false
+
+# ── Grafana ──
+grafana:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 200Mi
+    limits:
+      cpu: 300m
+      memory: 400Mi
+
+  # 🔐 초기 관리자 비밀번호 (배포 후 변경 필수)
+  adminPassword: "tutti-grafana-change-me"
+
+  # 대시보드 영속성: ConfigMap 방식 (PVC 불필요)
+  persistence:
+    enabled: false
+
+  # Loki 데이터소스 자동 프로비저닝
+  additionalDataSources:
+    - name: Loki
+      type: loki
+      access: proxy
+      url: http://loki.monitoring:3100
+      isDefault: false
+
+  # Grafana 서비스 타입 (ClusterIP — CF Tunnel로 외부 노출)
+  service:
+    type: ClusterIP
+
+# ── Alertmanager ──
+alertmanager:
+  alertmanagerSpec:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+    # Alertmanager PVC 비활성화 (경량 운영)
+    storage: {}
+
+# ── kube-state-metrics ──
+kube-state-metrics:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+# ── 기본 대시보드 & 프로메테우스 룰 ──
+defaultRules:
+  create: true
+  rules:
+    # 불필요한 룰 비활성화 (노이즈 감소)
+    etcd: false              # GKE Managed — 접근 불가
+    kubeScheduler: false     # GKE Managed
+    kubeControllerManager: false  # GKE Managed
+    kubeProxy: false         # GKE Managed
+
+# ── kubeScheduler, etcd scraping 비활성화 (GKE Managed) ──
+kubeScheduler:
+  enabled: false
+kubeEtcd:
+  enabled: false
+kubeControllerManager:
+  enabled: false
+kubeProxy:
+  enabled: false
