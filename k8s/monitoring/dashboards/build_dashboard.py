@@ -78,6 +78,13 @@ def create_dashboard():
                 "instant": True,
                 "legendFormat": "cf-tunnel",
                 "refId": "F"
+            },
+            {
+                "expr": 'kube_pod_status_ready{condition="true", pod=~".*frontend.*"}',
+                "format": "time_series",
+                "instant": True,
+                "legendFormat": "{{pod}}",
+                "refId": "G"
             }
         ],
         "transformations": [
@@ -216,7 +223,7 @@ def create_dashboard():
 
     # ── Template Variables: 모듈 선택 ──
     # container 라벨: Loki API /label/container/values 에서 확인된 정확한 이름 사용
-    #   main-server, tutti-backend-ai-ai-worker-1, converter-service, cloudflared
+    #   main-server, tutti-backend-ai-ai-worker-1, converter-service, cloudflared, frontend
     dashboard["templating"]["list"] = [
         {
             "name": "log_module",
@@ -228,6 +235,7 @@ def create_dashboard():
                 '🧠 AI Server : {container="tutti-backend-ai-ai-worker-1"} != "복구할 Pending 메시지 없음"',
                 '🔄 Converter : {container="converter-service"} != "GET /health"',
                 '🌐 Cloudflared : {container="cloudflared"}',
+                '🖥️ Frontend : {container="frontend"}',
             ]),
             "current": {
                 "text": "📝 Main Server (App)",
@@ -239,6 +247,7 @@ def create_dashboard():
                 {"text": "🧠 AI Server",          "value": '{container="tutti-backend-ai-ai-worker-1"} != "복구할 Pending 메시지 없음"', "selected": False},
                 {"text": "🔄 Converter",           "value": '{container="converter-service"} != "GET /health"', "selected": False},
                 {"text": "🌐 Cloudflared",         "value": '{container="cloudflared"}', "selected": False},
+                {"text": "🖥️ Frontend",           "value": '{container="frontend"}', "selected": False},
             ],
             "hide": 0,
             "includeAll": False,
