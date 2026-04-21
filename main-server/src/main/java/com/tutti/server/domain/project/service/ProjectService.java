@@ -530,11 +530,12 @@ public class ProjectService {
         if (mappingItems == null || mappingItems.isEmpty()) {
             return;
         }
-        // 매핑 대상이 유효한 카테고리인지 검증 (generatable 여부와 무관)
+        // 매핑 대상 악기 검증: 모든 미디 악기(0~127) 및 Drum(128), Drop(129) 허용
         for (MappingItem item : mappingItems) {
-            if (!categoryRepository.existsById(item.getTargetInstrumentId())) {
-                throw new BusinessException(ErrorCode.INVALID_INSTRUMENT_CATEGORY,
-                        "존재하지 않는 악기 카테고리: " + item.getTargetInstrumentId());
+            Integer targetId = item.getTargetInstrumentId();
+            if (targetId == null || targetId < 0 || targetId > 129) {
+                throw new BusinessException(ErrorCode.INVALID_INPUT,
+                        "올바르지 않은 맵핑 악기 ID입니다: " + targetId);
             }
         }
         for (MappingItem item : mappingItems) {

@@ -191,9 +191,6 @@ class ProjectServiceTest {
             given(categoryRepository.existsByRepresentativeProgramAndGeneratableTrue(40))
                     .willReturn(true);
 
-            // mock: targetInstrumentId=40이 유효한 카테고리
-            given(categoryRepository.existsById(40))
-                    .willReturn(true);
 
             // when
             var result = projectService.regenerate(TestFixtures.USER_ID, 1L, request);

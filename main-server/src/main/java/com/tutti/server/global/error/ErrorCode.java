@@ -39,7 +39,6 @@ public enum ErrorCode {
     FILE_TOO_LARGE(HttpStatus.BAD_REQUEST, "파일 크기가 제한을 초과했습니다."),
     INVALID_MIDI_STRUCTURE(HttpStatus.UNPROCESSABLE_ENTITY, "MIDI 파일 구조가 올바르지 않습니다."),
     UNSUPPORTED_INSTRUMENT(HttpStatus.BAD_REQUEST, "AI 편곡을 지원하지 않는 악기입니다."),
-    INVALID_INSTRUMENT_CATEGORY(HttpStatus.BAD_REQUEST, "존재하지 않는 악기 카테고리입니다."),
     INVALID_GENRE(HttpStatus.BAD_REQUEST, "지원하지 않는 장르입니다."),
     INVALID_NAME(HttpStatus.BAD_REQUEST, "이름이 올바르지 않습니다."),
 
