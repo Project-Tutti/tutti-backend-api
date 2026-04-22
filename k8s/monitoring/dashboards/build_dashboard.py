@@ -232,7 +232,7 @@ def create_dashboard():
             "query": ", ".join([
                 '📝 Main Server (App) : {container="main-server"} != "HTTP ("',
                 '🔍 Main Server (API) : {container="main-server"} |= "HTTP ("',
-                '🧠 AI Server : {container="tutti-backend-ai-ai-worker-1"} != "복구할 Pending 메시지 없음"',
+                '🧠 AI Server : {container=~".*ai-worker-gpu.*"} != "복구할 Pending 메시지 없음"',
                 '🔄 Converter : {container="converter-service"} != "GET /health"',
                 '🌐 Cloudflared : {container="cloudflared"}',
                 '🖥️ Frontend : {container="frontend"}',
@@ -244,7 +244,7 @@ def create_dashboard():
             "options": [
                 {"text": "📝 Main Server (App)",  "value": '{container="main-server"} != "HTTP ("', "selected": True},
                 {"text": "🔍 Main Server (API)",  "value": '{container="main-server"} |= "HTTP ("', "selected": False},
-                {"text": "🧠 AI Server",          "value": '{container="tutti-backend-ai-ai-worker-1"} != "복구할 Pending 메시지 없음"', "selected": False},
+                {"text": "🧠 AI Server",          "value": '{container=~".*ai-worker-gpu.*"} != "복구할 Pending 메시지 없음"', "selected": False},
                 {"text": "🔄 Converter",           "value": '{container="converter-service"} != "GET /health"', "selected": False},
                 {"text": "🌐 Cloudflared",         "value": '{container="cloudflared"}', "selected": False},
                 {"text": "🖥️ Frontend",           "value": '{container="frontend"}', "selected": False},
