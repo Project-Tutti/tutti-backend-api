@@ -245,7 +245,7 @@ public class ArrangementService {
                 .versionId(version.getId())
                 .midiFilePath(midiUrl)
                 .mappings(mappingDataList)
-                .targetInstrumentId(categoryProgram)
+                .targetInstrumentId(version.getInstrumentId())
                 .targetInstrumentName(instrumentName)
                 .targetMidiProgram(version.getInstrumentId())
                 .minNote(version.getMinNote())
