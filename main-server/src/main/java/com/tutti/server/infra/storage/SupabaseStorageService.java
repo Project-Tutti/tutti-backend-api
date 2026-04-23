@@ -46,7 +46,7 @@ public class SupabaseStorageService {
      */
     public void upload(String bucket, String path, byte[] data, String contentType) {
         supabaseWebClient.post()
-                .uri("/storage/v1/object/{bucket}/{path}", bucket, path)
+                .uri(uriBuilder -> uriBuilder.path("/storage/v1/object/{bucket}/").path(path).build(bucket))
                 .header("x-upsert", "true")
                 .contentType(MediaType.parseMediaType(contentType))
                 .bodyValue(data)
@@ -63,7 +63,7 @@ public class SupabaseStorageService {
      */
     public byte[] download(String bucket, String path) {
         return supabaseWebClient.get()
-                .uri("/storage/v1/object/{bucket}/{path}", bucket, path)
+                .uri(uriBuilder -> uriBuilder.path("/storage/v1/object/{bucket}/").path(path).build(bucket))
                 .retrieve()
                 .bodyToMono(byte[].class)
                 .doOnError(err -> log.error("Supabase Storage 다운로드 실패: {}/{}, error={}",
