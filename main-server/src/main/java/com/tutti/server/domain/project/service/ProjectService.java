@@ -578,7 +578,14 @@ public class ProjectService {
      */
     private String saveMidiFile(UUID userId, MultipartFile file) {
         try {
-            String filename = UUID.randomUUID() + "_" + file.getOriginalFilename();
+            // 한글(NFD/NFC), 특수문자, 띄어쓰기 등으로 인한 Supabase Storage 업로드 오류(400 Bad Request)를 원천 차단하기 위해
+            // Storage 경로에는 원본 파일명을 제외하고 UUID로만 저장합니다.
+            // (원본 파일명은 이미 DB의 Project.originalFileName 에 저장되어 UI에 정상 표시됩니다.)
+            String extension = ".mid";
+            if (file.getOriginalFilename() != null && file.getOriginalFilename().toLowerCase().endsWith(".midi")) {
+                extension = ".midi";
+            }
+            String filename = UUID.randomUUID() + extension;
             String storagePath = userId.toString() + "/" + filename;
 
             storageService.upload(
