@@ -39,7 +39,7 @@ discovery.relabel "ai_logs_relabel" {
   // 모든 Docker 컨테이너의 로그를 가져오되, 컨테이너 이름을 라벨로 붙임
   rule {
     source_labels = ["__meta_docker_container_name"]
-    regex         = "/(.*)"
+    regex         = "/?(.*)"
     target_label  = "container"
   }
 }
