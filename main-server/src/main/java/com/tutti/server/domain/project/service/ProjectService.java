@@ -404,7 +404,7 @@ public class ProjectService {
     // 3.10 버전 이름 수정
     // ══════════════════════════════════════
 
-    /** 특정 버전의 이름을 변경합니다. */
+    /** 특정 버전의 이름을 변경합니다. 완료된 버전이면 악보 제목도 함께 업데이트합니다. */
     @Transactional
     public VersionRenameResponse renameVersion(UUID userId, Long projectId, Long versionId,
             VersionRenameRequest request) {
@@ -412,12 +412,66 @@ public class ProjectService {
         ProjectVersion version = findVersion(projectId, versionId);
         version.rename(request.getName());
 
+        // 완료된 버전의 MusicXML이 존재하면 악보 제목도 업데이트
+        if (version.isComplete() && version.getResultXmlPath() != null) {
+            updateXmlTitle(version.getResultXmlPath(), request.getName());
+        }
+
         return VersionRenameResponse.builder()
                 .projectId(projectId)
                 .versionId(version.getId())
                 .name(version.getName())
                 .updatedAt(version.getUpdatedAt())
                 .build();
+    }
+
+    /**
+     * Supabase에 저장된 MusicXML 파일의 악보 제목을 변경합니다.
+     * XML을 다운로드 → 제목 태그 교체 → 재업로드하는 방식으로 동작합니다.
+     */
+    private void updateXmlTitle(String xmlPath, String newTitle) {
+        try {
+            byte[] xmlBytes = storageService.download(SupabaseStorageService.BUCKET_RESULTS, xmlPath);
+            if (xmlBytes == null) {
+                log.warn("XML 제목 업데이트 실패: 파일을 찾을 수 없음 ({})", xmlPath);
+                return;
+            }
+
+            String xml = new String(xmlBytes, java.nio.charset.StandardCharsets.UTF_8);
+            String safeTitle = newTitle
+                    .replace("&", "&amp;")
+                    .replace("<", "&lt;")
+                    .replace(">", "&gt;")
+                    .replace("\"", "&quot;");
+
+            // 기존 제목 추출 (credit-words 교체에 사용)
+            java.util.regex.Matcher matcher = java.util.regex.Pattern
+                    .compile("<movement-title>(.*?)</movement-title>").matcher(xml);
+            String oldTitle = matcher.find() ? matcher.group(1).trim() : null;
+
+            // movement-title, work-title 교체
+            xml = xml.replaceAll(
+                    "(<movement-title>).*?(</movement-title>)",
+                    "$1" + java.util.regex.Matcher.quoteReplacement(safeTitle) + "$2");
+            xml = xml.replaceAll(
+                    "(<work-title>).*?(</work-title>)",
+                    "$1" + java.util.regex.Matcher.quoteReplacement(safeTitle) + "$2");
+
+            // credit-words 교체 (기존 제목과 동일한 텍스트만)
+            if (oldTitle != null && !oldTitle.isEmpty()) {
+                String escapedOld = java.util.regex.Pattern.quote(oldTitle);
+                xml = xml.replaceAll(
+                        "(<credit-words[^>]*>)\\s*" + escapedOld + "\\s*(</credit-words>)",
+                        "$1" + java.util.regex.Matcher.quoteReplacement(safeTitle) + "$2");
+            }
+
+            storageService.upload(SupabaseStorageService.BUCKET_RESULTS,
+                    xmlPath, xml.getBytes(java.nio.charset.StandardCharsets.UTF_8), "application/xml");
+            log.info("XML 악보 제목 업데이트 완료: {} → '{}'", xmlPath, newTitle);
+
+        } catch (Exception e) {
+            log.error("XML 제목 업데이트 중 오류 (버전 이름은 정상 변경됨): {}", e.getMessage());
+        }
     }
 
     // ══════════════════════════════════════

@@ -387,14 +387,18 @@ public class ArrangementService {
                 midiStoragePath, midiBytes, "audio/midi");
         log.info("MIDI 결과물 Supabase 업로드 완료: {}", midiStoragePath);
 
-        // 2. XML/PDF 변환
+        // 2. XML/PDF 변환 — 버전 이름을 악보 제목으로 주입
+        String versionName = versionRepository.findById(payload.getVersionId())
+                .map(ProjectVersion::getName)
+                .orElse(null);
+
         String xmlStoragePath = null;
         String pdfStoragePath = null;
         try {
             xmlStoragePath = convertAndUpload(midiBytes,
                     payload.getProjectId(), payload.getVersionId(),
                     "result.musicxml", "application/xml",
-                    converterService::midiToMusicXml);
+                    bytes -> converterService.midiToMusicXml(bytes, versionName));
 
             pdfStoragePath = convertAndUpload(midiBytes,
                     payload.getProjectId(), payload.getVersionId(),

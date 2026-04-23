@@ -40,6 +40,22 @@ public class ConverterService {
     }
 
     /**
+     * MIDI 파일을 MusicXML로 변환합니다 (악보 제목 포함).
+     * <p>
+     * Converter 서비스에 X-Score-Title 헤더를 전달하여,
+     * 변환된 MusicXML에 프로젝트 이름이 악보 제목으로 주입됩니다.
+     * </p>
+     *
+     * @param midiBytes MIDI 파일 바이트 배열
+     * @param title     악보 제목 (프로젝트 이름)
+     * @return MusicXML 바이트 배열, 실패 시 null
+     */
+    public byte[] midiToMusicXml(byte[] midiBytes, String title) {
+        return convertWithTitle("/api/v1/convert/midi-to-xml",
+                MediaType.APPLICATION_OCTET_STREAM, midiBytes, "MIDI→MusicXML", title);
+    }
+
+    /**
      * MusicXML 파일을 MIDI로 변환합니다.
      *
      * @param xmlBytes MusicXML 파일 바이트 배열
@@ -97,6 +113,36 @@ public class ConverterService {
             return converterWebClient.post()
                     .uri(uri)
                     .contentType(contentType)
+                    .bodyValue(data)
+                    .retrieve()
+                    .bodyToMono(byte[].class)
+                    .block();
+        } catch (WebClientResponseException e) {
+            log.error("{} 변환 실패: status={}, body={}",
+                    label, e.getStatusCode(), e.getResponseBodyAsString());
+            return null;
+        } catch (Exception e) {
+            log.warn("Converter 서비스 연결 불가 (아직 미배포?): {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * 공통 변환 메서드 + X-Score-Title 헤더 전달.
+     * 악보 제목이 필요한 변환(MIDI→MusicXML)에서 사용합니다.
+     */
+    private byte[] convertWithTitle(String uri, MediaType contentType,
+            byte[] data, String label, String title) {
+        try {
+            var requestSpec = converterWebClient.post()
+                    .uri(uri)
+                    .contentType(contentType);
+
+            if (title != null && !title.isBlank()) {
+                requestSpec = requestSpec.header("X-Score-Title", title);
+            }
+
+            return requestSpec
                     .bodyValue(data)
                     .retrieve()
                     .bodyToMono(byte[].class)
