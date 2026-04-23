@@ -79,7 +79,7 @@ class ArrangementServiceTest {
             // Converter mock
             byte[] xmlBytes = "<score>".getBytes();
             byte[] pdfBytes = new byte[] { 0x25, 0x50, 0x44, 0x46 }; // PDF header
-            given(converterService.midiToMusicXml(midiBytes)).willReturn(xmlBytes);
+            given(converterService.midiToMusicXml(midiBytes, "Ver 1")).willReturn(xmlBytes);
             given(converterService.midiToPdf(midiBytes)).willReturn(pdfBytes);
 
             // when
