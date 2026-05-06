@@ -78,6 +78,17 @@ public class ConverterService {
     }
 
     /**
+     * MIDI 파일을 MP3 오디오로 변환합니다.
+     *
+     * @param midiBytes MIDI 파일 바이트 배열
+     * @return MP3 바이트 배열, 실패 시 null
+     */
+    public byte[] midiToMp3(byte[] midiBytes) {
+        return convert("/api/v1/convert/midi-to-mp3",
+                MediaType.APPLICATION_OCTET_STREAM, midiBytes, "MIDI→MP3");
+    }
+
+    /**
      * MusicXML 파일을 PDF 악보로 변환합니다.
      *
      * @param xmlBytes MusicXML 파일 바이트 배열

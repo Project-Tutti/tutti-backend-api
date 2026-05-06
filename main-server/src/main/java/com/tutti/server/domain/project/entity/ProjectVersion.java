@@ -120,6 +120,10 @@ public class ProjectVersion extends BaseTimeEntity {
     @Column(name = "result_pdf_path", length = 512)
     private String resultPdfPath;
 
+    /** 편곡 결과 MP3 오디오 파일 경로 — 미리듣기 재생에 사용됩니다. */
+    @Column(name = "result_mp3_path", length = 512)
+    private String resultMp3Path;
+
     /** Soft Delete 시각. */
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
@@ -191,13 +195,14 @@ public class ProjectVersion extends BaseTimeEntity {
 
     /**
      * 결과 파일 경로를 한번에 업데이트합니다.
-     * AI 서버가 편곡을 완료하면 MIDI, XML, PDF 세 가지 결과물의 경로를
+     * AI 서버가 편곡을 완료하면 MIDI, XML, PDF, MP3 네 가지 결과물의 경로를
      * 콜백 페이로드로 전달합니다.
      */
-    public void updateResultPaths(String midiPath, String xmlPath, String pdfPath) {
+    public void updateResultPaths(String midiPath, String xmlPath, String pdfPath, String mp3Path) {
         this.resultMidiPath = midiPath;
         this.resultXmlPath = xmlPath;
         this.resultPdfPath = pdfPath;
+        this.resultMp3Path = mp3Path;
     }
 
     /** Soft Delete — 물리 삭제 대신 시각 기록. */
@@ -224,7 +229,7 @@ public class ProjectVersion extends BaseTimeEntity {
      * Controller → Service → 이 메서드 순서로 호출됩니다.
      * </p>
      *
-     * @param type "midi", "xml", "pdf" 중 하나
+     * @param type "midi", "xml", "pdf", "mp3" 중 하나
      * @return 해당 파일 경로, 지원하지 않는 타입이면 null
      */
     public String getResultPathByType(String type) {
@@ -232,6 +237,7 @@ public class ProjectVersion extends BaseTimeEntity {
             case "midi" -> this.resultMidiPath;
             case "xml" -> this.resultXmlPath;
             case "pdf" -> this.resultPdfPath;
+            case "mp3" -> this.resultMp3Path;
             default -> null;
         };
     }

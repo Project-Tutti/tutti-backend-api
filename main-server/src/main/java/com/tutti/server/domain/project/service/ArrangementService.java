@@ -404,6 +404,7 @@ public class ArrangementService {
 
         String xmlStoragePath = null;
         String pdfStoragePath = null;
+        String mp3StoragePath = null;
         try {
             xmlStoragePath = convertAndUpload(midiBytes,
                     payload.getProjectId(), payload.getVersionId(),
@@ -414,14 +415,19 @@ public class ArrangementService {
                     payload.getProjectId(), payload.getVersionId(),
                     "result.pdf", "application/pdf",
                     converterService::midiToPdf);
+
+            mp3StoragePath = convertAndUpload(midiBytes,
+                    payload.getProjectId(), payload.getVersionId(),
+                    "result.mp3", "audio/mpeg",
+                    converterService::midiToMp3);
         } catch (Exception e) {
-            log.error("XML/PDF 변환 중 오류 (MIDI는 저장됨): {}", e.getMessage());
+            log.error("XML/PDF/MP3 변환 중 오류 (MIDI는 저장됨): {}", e.getMessage());
         }
 
         // 4. DB 업데이트 — COMPLETE + 결과 파일 경로
         version.updateStatus(ProjectVersion.VersionStatus.COMPLETE);
         version.updateProgress(100);
-        version.updateResultPaths(midiStoragePath, xmlStoragePath, pdfStoragePath);
+        version.updateResultPaths(midiStoragePath, xmlStoragePath, pdfStoragePath, mp3StoragePath);
         versionRepository.save(version);
 
         // 5. Redis Pub/Sub로 완료 이벤트 브로드캐스트

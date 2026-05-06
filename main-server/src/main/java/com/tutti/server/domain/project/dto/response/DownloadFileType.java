@@ -7,7 +7,8 @@ public enum DownloadFileType {
 
     MIDI("audio/midi", ".mid"),
     XML("application/xml", ".xml"),
-    PDF("application/pdf", ".pdf");
+    PDF("application/pdf", ".pdf"),
+    MP3("audio/mpeg", ".mp3");
 
     private final String contentType;
     private final String extension;

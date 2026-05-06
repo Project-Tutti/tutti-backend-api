@@ -88,8 +88,10 @@ class ArrangementServiceTest {
             // Converter mock — scoreTitle = "나의 피아노곡 - Ver 1"
             byte[] xmlBytes = "<score>".getBytes();
             byte[] pdfBytes = new byte[] { 0x25, 0x50, 0x44, 0x46 }; // PDF header
+            byte[] mp3Bytes = new byte[] { 0x49, 0x44, 0x33 }; // ID3 header
             given(converterService.midiToMusicXml(midiBytes, "나의 피아노곡 - Ver 1")).willReturn(xmlBytes);
             given(converterService.midiToPdf(midiBytes)).willReturn(pdfBytes);
+            given(converterService.midiToMp3(midiBytes)).willReturn(mp3Bytes);
 
             // when
             arrangementService.handleCallbackWithFile(payload, midiBytes);
@@ -100,6 +102,7 @@ class ArrangementServiceTest {
             assertThat(version.getResultMidiPath()).isEqualTo("1/1/result.mid");
             assertThat(version.getResultXmlPath()).isEqualTo("1/1/result.musicxml");
             assertThat(version.getResultPdfPath()).isEqualTo("1/1/result.pdf");
+            assertThat(version.getResultMp3Path()).isEqualTo("1/1/result.mp3");
             verify(versionRepository).save(version);
 
             // Supabase 업로드 검증

@@ -215,7 +215,7 @@ class ProjectServiceTest {
         void 잘못된_파일타입() {
             // when & then
             assertThatThrownBy(
-                    () -> projectService.downloadFile(TestFixtures.USER_ID, 1L, 1L, "mp3"))
+                    () -> projectService.downloadFile(TestFixtures.USER_ID, 1L, 1L, "wav"))
                     .isInstanceOf(BusinessException.class)
                     .extracting(e -> ((BusinessException) e).getErrorCode())
                     .isEqualTo(ErrorCode.INVALID_FILE_TYPE);
