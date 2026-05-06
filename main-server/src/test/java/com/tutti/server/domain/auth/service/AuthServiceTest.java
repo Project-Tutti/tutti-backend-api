@@ -5,6 +5,7 @@ import com.tutti.server.domain.auth.dto.request.SignupRequest;
 import com.tutti.server.domain.auth.dto.request.TokenRefreshRequest;
 import com.tutti.server.domain.auth.entity.RefreshToken;
 import com.tutti.server.domain.auth.repository.RefreshTokenRepository;
+import com.tutti.server.domain.project.entity.Project;
 import com.tutti.server.domain.project.repository.ProjectRepository;
 import com.tutti.server.infra.storage.SupabaseStorageService;
 import com.tutti.server.domain.user.entity.Profile;
@@ -25,6 +26,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -112,8 +114,9 @@ class AuthServiceTest {
             // given
             SignupRequest request = createSignupRequest(TestFixtures.EMAIL, "새이름", "NewPass123!@");
             Profile deactivated = TestFixtures.createDeactivatedProfile();
+            Project oldProject = TestFixtures.createProject(deactivated);
             given(profileRepository.findByEmail(TestFixtures.EMAIL)).willReturn(Optional.of(deactivated));
-            given(projectRepository.findAllByUserId(TestFixtures.USER_ID)).willReturn(Collections.emptyList());
+            given(projectRepository.findAllByUserId(TestFixtures.USER_ID)).willReturn(List.of(oldProject));
             given(passwordEncoder.encode("NewPass123!@")).willReturn("newEncodedPass");
             given(jwtTokenProvider.createAccessToken(any(), any())).willReturn("access-token");
             given(jwtTokenProvider.createRefreshToken(any())).willReturn("refresh-token");
@@ -127,7 +130,7 @@ class AuthServiceTest {
             assertThat(deactivated.isActive()).isTrue();
             assertThat(deactivated.getDeletedAt()).isNull();
             assertThat(deactivated.getName()).isEqualTo("새이름");
-            verify(projectRepository).deleteAll(anyList());
+            verify(projectRepository).deleteAll(List.of(oldProject));
             verify(refreshTokenRepository).save(any(RefreshToken.class));
         }
     }
