@@ -5,6 +5,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -17,4 +18,7 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
 
     Page<Project> findByUserIdAndDeletedAtIsNullAndNameContainingIgnoreCase(
             UUID userId, String keyword, Pageable pageable);
+
+    /** 사용자의 모든 프로젝트 조회 — 계정 재활성화 시 물리 삭제용. */
+    List<Project> findAllByUserId(UUID userId);
 }

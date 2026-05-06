@@ -137,6 +137,24 @@ public class Profile extends BaseTimeEntity {
         this.deletedAt = LocalDateTime.now();
     }
 
+    /**
+     * 탈퇴 계정 재활성화 — 동일 이메일로 재가입 시 호출.
+     * 기존 계정 정보를 새 가입 정보로 덮어쓰고 활성화합니다.
+     *
+     * @param name            새 사용자 이름
+     * @param encodedPassword 새 BCrypt 해시 비밀번호 (소셜 로그인이면 null)
+     * @param provider        인증 제공자 (EMAIL 또는 GOOGLE)
+     * @param avatarUrl       프로필 이미지 URL (소셜 로그인 시)
+     */
+    public void reactivate(String name, String encodedPassword, Provider provider, String avatarUrl) {
+        this.name = name;
+        this.password = encodedPassword;
+        this.provider = provider;
+        this.avatarUrl = avatarUrl;
+        this.isActive = true;
+        this.deletedAt = null;
+    }
+
     /** 활성 상태 확인. Lombok @Getter가 isIsActive()를 생성하는 문제를 방지합니다. */
     public boolean isActive() {
         return this.isActive;

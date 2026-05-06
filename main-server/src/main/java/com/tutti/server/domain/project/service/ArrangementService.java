@@ -380,19 +380,26 @@ public class ArrangementService {
         log.info("AI 완료 콜백 수신 (multipart): project={}, version={}, midiSize={}",
                 payload.getProjectId(), payload.getVersionId(), midiBytes.length);
 
-        // 1. MIDI 파일을 Supabase에 직접 업로드
+        // 1. version 존재 확인 — 계정 재활성화로 물리 삭제된 경우 스킵
+        var versionOpt = versionRepository.findById(payload.getVersionId());
+        if (versionOpt.isEmpty()) {
+            log.warn("콜백 도착했으나 version이 존재하지 않음 (물리 삭제됨?): versionId={}. 업로드 스킵.",
+                    payload.getVersionId());
+            return;
+        }
+
+        // 2. MIDI 파일을 Supabase에 직접 업로드
         String midiStoragePath = payload.getProjectId() + "/" + payload.getVersionId() + "/result.mid";
         storageService.upload(
                 SupabaseStorageService.BUCKET_RESULTS,
                 midiStoragePath, midiBytes, "audio/midi");
         log.info("MIDI 결과물 Supabase 업로드 완료: {}", midiStoragePath);
 
-        // 2. XML/PDF 변환 — 악보 제목 주입
+        // 3. XML/PDF 변환 — 악보 제목 주입
         //    프로젝트 이름 + 버전명을 조합합니다. (예: "나의 피아노곡 - Ver 1")
         //    두 값 모두 DB에서 NOT NULL이므로 null 체크 불필요.
-        String scoreTitle = versionRepository.findById(payload.getVersionId())
-                .map(v -> v.getProject().getName() + " - " + v.getName())
-                .orElse(null);
+        ProjectVersion version = versionOpt.get();
+        String scoreTitle = version.getProject().getName() + " - " + version.getName();
         log.info("악보 제목으로 사용할 값: '{}'", scoreTitle);
 
         String xmlStoragePath = null;
@@ -411,18 +418,13 @@ public class ArrangementService {
             log.error("XML/PDF 변환 중 오류 (MIDI는 저장됨): {}", e.getMessage());
         }
 
-        // 3. DB 업데이트 — COMPLETE + 결과 파일 경로
-        final String finalXml = xmlStoragePath;
-        final String finalPdf = pdfStoragePath;
+        // 4. DB 업데이트 — COMPLETE + 결과 파일 경로
+        version.updateStatus(ProjectVersion.VersionStatus.COMPLETE);
+        version.updateProgress(100);
+        version.updateResultPaths(midiStoragePath, xmlStoragePath, pdfStoragePath);
+        versionRepository.save(version);
 
-        versionRepository.findById(payload.getVersionId()).ifPresent(version -> {
-            version.updateStatus(ProjectVersion.VersionStatus.COMPLETE);
-            version.updateProgress(100);
-            version.updateResultPaths(midiStoragePath, finalXml, finalPdf);
-            versionRepository.save(version);
-        });
-
-        // 4. Redis Pub/Sub로 완료 이벤트 브로드캐스트
+        // 5. Redis Pub/Sub로 완료 이벤트 브로드캐스트
         // → deliverSseEventLocally()에서 status=complete 감지 시 emitter 자동 종료
         publishSseEvent(ProgressEvent.builder()
                 .projectId(payload.getProjectId())

@@ -8,6 +8,10 @@ import com.tutti.server.domain.auth.dto.response.AuthResponse;
 import com.tutti.server.domain.auth.dto.response.TokenResponse;
 import com.tutti.server.domain.auth.entity.RefreshToken;
 import com.tutti.server.domain.auth.repository.RefreshTokenRepository;
+import com.tutti.server.domain.project.entity.Project;
+import com.tutti.server.domain.project.entity.ProjectVersion;
+import com.tutti.server.domain.project.repository.ProjectRepository;
+import com.tutti.server.infra.storage.SupabaseStorageService;
 import com.tutti.server.domain.user.dto.response.UserProfileResponse;
 import com.tutti.server.domain.user.entity.Profile;
 import com.tutti.server.domain.user.repository.ProfileRepository;
@@ -28,6 +32,8 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.HexFormat;
+import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -75,6 +81,8 @@ public class AuthService {
 
     private final ProfileRepository profileRepository;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final ProjectRepository projectRepository;
+    private final SupabaseStorageService storageService;
     private final JwtTokenProvider jwtTokenProvider;
     private final JwtProperties jwtProperties;
     private final PasswordEncoder passwordEncoder;
@@ -102,20 +110,35 @@ public class AuthService {
     // 이 메서드 안에서 에러가 발생하면 Profile 저장과 RefreshToken 저장 모두 롤백됩니다.
     @Transactional
     public AuthResponse signup(SignupRequest request) {
-        // 1. 이메일 중복 검사 — 같은 이메일로 이미 가입된 유저가 있으면 409 Conflict
-        if (profileRepository.existsByEmail(request.getEmail())) {
-            throw new BusinessException(ErrorCode.EMAIL_ALREADY_EXISTS);
+        // 1. 동일 이메일로 기존 프로필이 있는지 확인
+        Optional<Profile> existing = profileRepository.findByEmail(request.getEmail());
+
+        Profile profile;
+        if (existing.isPresent()) {
+            Profile found = existing.get();
+            if (found.isActive()) {
+                // 활성 계정이 이미 존재 → 중복 가입 차단
+                throw new BusinessException(ErrorCode.EMAIL_ALREADY_EXISTS);
+            }
+            // 탈퇴 계정 → 스토리지 파일 + DB 레코드 물리 삭제 후 재활성화
+            cleanupUserProjects(found.getId());
+            found.reactivate(
+                    request.getName(),
+                    passwordEncoder.encode(request.getPassword()),
+                    Profile.Provider.EMAIL,
+                    null
+            );
+            profile = found;
+        } else {
+            // 2. 완전 신규 가입 — Profile 엔티티 생성, 비밀번호는 BCrypt로 해싱
+            profile = Profile.builder()
+                    .email(request.getEmail())
+                    .name(request.getName())
+                    .password(passwordEncoder.encode(request.getPassword()))
+                    .provider(Profile.Provider.EMAIL)
+                    .build();
+            profileRepository.save(profile);
         }
-
-        // 2. Profile 엔티티 생성 — 비밀번호는 BCrypt로 해싱하여 저장
-        Profile profile = Profile.builder()
-                .email(request.getEmail())
-                .name(request.getName())
-                .password(passwordEncoder.encode(request.getPassword()))
-                .provider(Profile.Provider.EMAIL)
-                .build();
-
-        profileRepository.save(profile);
 
         // 3. JWT Access Token + Refresh Token 발급 → 응답
         return issueTokens(profile);
@@ -132,7 +155,8 @@ public class AuthService {
      * @throws BusinessException EMAIL_ALREADY_EXISTS — 이미 존재하는 이메일
      */
     public void checkEmail(String email) {
-        if (profileRepository.existsByEmail(email)) {
+        // 활성 계정만 중복으로 간주 — 탈퇴한 이메일은 재사용 가능
+        if (profileRepository.existsByEmailAndIsActive(email, true)) {
             throw new BusinessException(ErrorCode.EMAIL_ALREADY_EXISTS);
         }
     }
@@ -221,18 +245,31 @@ public class AuthService {
             throw new BusinessException(ErrorCode.UNSUPPORTED_PROVIDER);
         }
 
-        // 3. 기존 활성 유저 조회 → 없으면 신규 프로필 생성
-        Profile profile = profileRepository.findByEmail(email)
-                .filter(Profile::isActive)
-                .orElseGet(() -> {
-                    Profile newProfile = Profile.builder()
-                            .email(email)
-                            .name(name)
-                            .provider(provider)
-                            .avatarUrl(avatarUrl)
-                            .build();
-                    return profileRepository.save(newProfile);
-                });
+        // 3. 기존 유저 조회 → 탈퇴 계정이면 재활성화, 없으면 신규 생성
+        Profile profile;
+        Optional<Profile> existing = profileRepository.findByEmail(email);
+
+        if (existing.isPresent()) {
+            Profile found = existing.get();
+            if (found.isActive()) {
+                // 활성 계정 → 기존 계정으로 로그인
+                profile = found;
+            } else {
+                // 탈퇴 계정 → 스토리지 파일 + DB 레코드 물리 삭제 후 재활성화
+                cleanupUserProjects(found.getId());
+                found.reactivate(name, null, provider, avatarUrl);
+                profile = found;
+            }
+        } else {
+            // 완전 신규
+            Profile newProfile = Profile.builder()
+                    .email(email)
+                    .name(name)
+                    .provider(provider)
+                    .avatarUrl(avatarUrl)
+                    .build();
+            profile = profileRepository.save(newProfile);
+        }
 
         // 4. JWT 토큰 발급
         return issueTokens(profile);
@@ -381,5 +418,42 @@ public class AuthService {
 
     private final GoogleOAuthService googleOAuthService;
 
+    // ── 재활성화 헬퍼 ──
 
+    /**
+     * 사용자의 모든 프로젝트를 Supabase Storage 파일과 함께 물리 삭제합니다.
+     * 계정 재활성화 시 이전 데이터를 완전히 제거하기 위해 사용합니다.
+     *
+     * <p>
+     * <b>삭제 순서:</b> 스토리지 파일 삭제 → DB 레코드 물리 삭제
+     * (스토리지 삭제 실패는 무시하고 DB 삭제는 반드시 진행)
+     * </p>
+     */
+    private void cleanupUserProjects(UUID userId) {
+        List<Project> projects = projectRepository.findAllByUserId(userId);
+        if (projects.isEmpty()) return;
+
+        // 1. Supabase Storage 파일 삭제 (실패해도 DB 삭제는 진행)
+        for (Project p : projects) {
+            // 원본 MIDI 파일
+            if (p.getMidiFilePath() != null) {
+                storageService.delete(SupabaseStorageService.BUCKET_MIDI, p.getMidiFilePath());
+            }
+            // 버전별 결과 파일 (MIDI/XML/PDF)
+            for (ProjectVersion v : p.getVersions()) {
+                if (v.getResultMidiPath() != null)
+                    storageService.delete(SupabaseStorageService.BUCKET_RESULTS, v.getResultMidiPath());
+                if (v.getResultXmlPath() != null)
+                    storageService.delete(SupabaseStorageService.BUCKET_RESULTS, v.getResultXmlPath());
+                if (v.getResultPdfPath() != null)
+                    storageService.delete(SupabaseStorageService.BUCKET_RESULTS, v.getResultPdfPath());
+            }
+        }
+
+        // 2. DB 레코드 물리 삭제 (cascade로 versions/tracks/mappings 함께 삭제)
+        projectRepository.deleteAll(projects);
+
+        log.info("계정 재활성화 — 사용자 {} 의 프로젝트 {}건 + 스토리지 파일 정리 완료",
+                userId, projects.size());
+    }
 }

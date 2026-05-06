@@ -72,6 +72,26 @@ public class SupabaseStorageService {
     }
 
     /**
+     * Supabase Storage에서 파일을 삭제합니다. (비동기 처리)
+     * 응답을 기다리지 않는 Fire-and-Forget 방식으로 동작하여
+     * 호출 측(예: 회원가입 로직)의 응답 지연을 방지합니다.
+     */
+    public void delete(String bucket, String path) {
+        try {
+            supabaseWebClient.delete()
+                    .uri(uriBuilder -> uriBuilder.path("/storage/v1/object/{bucket}/").path(path).build(bucket))
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .doOnSuccess(res -> log.info("Supabase Storage 삭제 완료: {}/{}", bucket, path))
+                    .doOnError(err -> log.warn("Supabase Storage 삭제 실패 (무시): {}/{}, error={}",
+                            bucket, path, err.getMessage()))
+                    .subscribe(); // block() 대신 subscribe() 사용으로 비동기 실행 (Fire-and-Forget)
+        } catch (Exception e) {
+            log.warn("Supabase Storage 삭제 호출 중 예외: {}/{}, error={}", bucket, path, e.getMessage());
+        }
+    }
+
+    /**
      * 파일을 다운로드하여 Spring Resource로 반환합니다.
      */
     public Resource downloadAsResource(String bucket, String path) {

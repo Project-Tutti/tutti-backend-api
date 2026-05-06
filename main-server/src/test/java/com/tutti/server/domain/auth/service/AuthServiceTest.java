@@ -5,6 +5,8 @@ import com.tutti.server.domain.auth.dto.request.SignupRequest;
 import com.tutti.server.domain.auth.dto.request.TokenRefreshRequest;
 import com.tutti.server.domain.auth.entity.RefreshToken;
 import com.tutti.server.domain.auth.repository.RefreshTokenRepository;
+import com.tutti.server.domain.project.repository.ProjectRepository;
+import com.tutti.server.infra.storage.SupabaseStorageService;
 import com.tutti.server.domain.user.entity.Profile;
 import com.tutti.server.domain.user.repository.ProfileRepository;
 import com.tutti.server.global.auth.jwt.JwtProperties;
@@ -22,6 +24,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.Collections;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -42,6 +45,10 @@ class AuthServiceTest {
     @Mock
     private RefreshTokenRepository refreshTokenRepository;
     @Mock
+    private ProjectRepository projectRepository;
+    @Mock
+    private SupabaseStorageService storageService;
+    @Mock
     private JwtTokenProvider jwtTokenProvider;
     @Mock
     private JwtProperties jwtProperties;
@@ -61,7 +68,7 @@ class AuthServiceTest {
         void 정상_회원가입_토큰발급() {
             // given
             SignupRequest request = createSignupRequest("new@tutti.com", "테스트", "Pass123!@");
-            given(profileRepository.existsByEmail("new@tutti.com")).willReturn(false);
+            given(profileRepository.findByEmail("new@tutti.com")).willReturn(Optional.empty());
             given(passwordEncoder.encode("Pass123!@")).willReturn("encodedPass");
             given(profileRepository.save(any(Profile.class)))
                     .willAnswer(inv -> {
@@ -85,17 +92,43 @@ class AuthServiceTest {
         }
 
         @Test
-        @DisplayName("이미 존재하는 이메일로 가입 시 EMAIL_ALREADY_EXISTS 예외")
+        @DisplayName("이미 존재하는 활성 이메일로 가입 시 EMAIL_ALREADY_EXISTS 예외")
         void 중복이메일_예외() {
             // given
             SignupRequest request = createSignupRequest("dup@tutti.com", "테스트", "Pass123!@");
-            given(profileRepository.existsByEmail("dup@tutti.com")).willReturn(true);
+            Profile activeProfile = TestFixtures.createActiveProfile(TestFixtures.USER_ID, "dup@tutti.com");
+            given(profileRepository.findByEmail("dup@tutti.com")).willReturn(Optional.of(activeProfile));
 
             // when & then
             assertThatThrownBy(() -> authService.signup(request))
                     .isInstanceOf(BusinessException.class)
                     .extracting(e -> ((BusinessException) e).getErrorCode())
                     .isEqualTo(ErrorCode.EMAIL_ALREADY_EXISTS);
+        }
+
+        @Test
+        @DisplayName("탈퇴 후 동일 이메일 재가입 — 재활성화 + 이전 프로젝트 물리 삭제")
+        void 탈퇴후_재가입_성공() {
+            // given
+            SignupRequest request = createSignupRequest(TestFixtures.EMAIL, "새이름", "NewPass123!@");
+            Profile deactivated = TestFixtures.createDeactivatedProfile();
+            given(profileRepository.findByEmail(TestFixtures.EMAIL)).willReturn(Optional.of(deactivated));
+            given(projectRepository.findAllByUserId(TestFixtures.USER_ID)).willReturn(Collections.emptyList());
+            given(passwordEncoder.encode("NewPass123!@")).willReturn("newEncodedPass");
+            given(jwtTokenProvider.createAccessToken(any(), any())).willReturn("access-token");
+            given(jwtTokenProvider.createRefreshToken(any())).willReturn("refresh-token");
+            given(jwtProperties.getRefreshTokenExpiration()).willReturn(1209600000L);
+
+            // when
+            var result = authService.signup(request);
+
+            // then
+            assertThat(result.getAccessToken()).isEqualTo("access-token");
+            assertThat(deactivated.isActive()).isTrue();
+            assertThat(deactivated.getDeletedAt()).isNull();
+            assertThat(deactivated.getName()).isEqualTo("새이름");
+            verify(projectRepository).deleteAll(anyList());
+            verify(refreshTokenRepository).save(any(RefreshToken.class));
         }
     }
 
@@ -111,23 +144,33 @@ class AuthServiceTest {
         @DisplayName("사용 가능한 이메일 — 예외 없이 통과한다")
         void 사용가능_이메일() {
             // given
-            given(profileRepository.existsByEmail("ok@tutti.com")).willReturn(false);
+            given(profileRepository.existsByEmailAndIsActive("ok@tutti.com", true)).willReturn(false);
 
             // when & then — 예외 없이 정상 완료
             authService.checkEmail("ok@tutti.com");
         }
 
         @Test
-        @DisplayName("이미 존재하는 이메일 — EMAIL_ALREADY_EXISTS 예외")
+        @DisplayName("이미 존재하는 활성 이메일 — EMAIL_ALREADY_EXISTS 예외")
         void 중복이메일_예외() {
             // given
-            given(profileRepository.existsByEmail("dup@tutti.com")).willReturn(true);
+            given(profileRepository.existsByEmailAndIsActive("dup@tutti.com", true)).willReturn(true);
 
             // when & then
             assertThatThrownBy(() -> authService.checkEmail("dup@tutti.com"))
                     .isInstanceOf(BusinessException.class)
                     .extracting(e -> ((BusinessException) e).getErrorCode())
                     .isEqualTo(ErrorCode.EMAIL_ALREADY_EXISTS);
+        }
+
+        @Test
+        @DisplayName("탈퇴한 이메일 — 사용 가능으로 통과")
+        void 탈퇴_이메일_사용가능() {
+            // given — 탈퇴 계정만 존재하므로 활성 계정은 없음
+            given(profileRepository.existsByEmailAndIsActive(TestFixtures.EMAIL, true)).willReturn(false);
+
+            // when & then — 예외 없이 정상 완료
+            authService.checkEmail(TestFixtures.EMAIL);
         }
     }
 
