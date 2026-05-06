@@ -372,11 +372,23 @@ public class ProjectService {
     // 3.8 프로젝트 이름 수정
     // ══════════════════════════════════════
 
-    /** 프로젝트 이름 변경. 소유자만 변경할 수 있습니다. */
+    /**
+     * 프로젝트 이름 변경. 소유자만 변경할 수 있습니다.
+     * 프로젝트에 속한 모든 완료 버전의 MusicXML 악보 제목도 함께 업데이트합니다.
+     */
     @Transactional
     public ProjectRenameResponse renameProject(UUID userId, Long projectId, ProjectRenameRequest request) {
         Project project = findProjectWithOwnership(userId, projectId);
         project.rename(request.getName());
+
+        // 프로젝트에 속한 모든 완료 버전의 XML 악보 제목을 일괄 업데이트
+        List<ProjectVersion> versions = versionRepository.findByProjectIdWithMappings(projectId);
+        for (ProjectVersion version : versions) {
+            if (version.isComplete() && !version.isDeleted() && version.getResultXmlPath() != null) {
+                String scoreTitle = request.getName() + " - " + version.getName();
+                updateXmlTitle(version.getResultXmlPath(), scoreTitle);
+            }
+        }
 
         return ProjectRenameResponse.builder()
                 .id(project.getId())
@@ -414,7 +426,8 @@ public class ProjectService {
 
         // 완료된 버전의 MusicXML이 존재하면 악보 제목도 업데이트
         if (version.isComplete() && version.getResultXmlPath() != null) {
-            updateXmlTitle(version.getResultXmlPath(), request.getName());
+            String scoreTitle = version.getProject().getName() + " - " + request.getName();
+            updateXmlTitle(version.getResultXmlPath(), scoreTitle);
         }
 
         return VersionRenameResponse.builder()
