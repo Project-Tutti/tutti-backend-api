@@ -433,13 +433,11 @@ public class AuthService {
         List<Project> projects = projectRepository.findAllByUserId(userId);
         if (projects.isEmpty()) return;
 
-        // 1. Supabase Storage 파일 삭제 (실패해도 DB 삭제는 진행)
+        // 1. Supabase Storage 파일 삭제 (비동기 Fire-and-Forget)
         for (Project p : projects) {
-            // 원본 MIDI 파일
             if (p.getMidiFilePath() != null) {
                 storageService.delete(SupabaseStorageService.BUCKET_MIDI, p.getMidiFilePath());
             }
-            // 버전별 결과 파일 (MIDI/XML/PDF)
             for (ProjectVersion v : p.getVersions()) {
                 if (v.getResultMidiPath() != null)
                     storageService.delete(SupabaseStorageService.BUCKET_RESULTS, v.getResultMidiPath());
@@ -450,8 +448,12 @@ public class AuthService {
             }
         }
 
-        // 2. DB 레코드 물리 삭제 (cascade로 versions/tracks/mappings 함께 삭제)
-        projectRepository.deleteAll(projects);
+        // 2. DB Bulk Delete — FK 의존 순서대로 4개 DELETE 쿼리만 실행
+        //    (JPA cascade deleteAll은 엔티티 수만큼 SELECT+DELETE를 반복하여 느림)
+        projectRepository.bulkDeleteVersionMappingsByUserId(userId);
+        projectRepository.bulkDeleteVersionsByUserId(userId);
+        projectRepository.bulkDeleteTracksByUserId(userId);
+        projectRepository.bulkDeleteProjectsByUserId(userId);
 
         log.info("계정 재활성화 — 사용자 {} 의 프로젝트 {}건 + 스토리지 파일 정리 완료",
                 userId, projects.size());

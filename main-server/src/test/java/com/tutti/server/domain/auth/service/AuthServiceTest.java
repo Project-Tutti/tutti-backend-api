@@ -130,7 +130,7 @@ class AuthServiceTest {
             assertThat(deactivated.isActive()).isTrue();
             assertThat(deactivated.getDeletedAt()).isNull();
             assertThat(deactivated.getName()).isEqualTo("새이름");
-            verify(projectRepository).deleteAll(List.of(oldProject));
+            verify(projectRepository).bulkDeleteProjectsByUserId(TestFixtures.USER_ID);
             verify(refreshTokenRepository).save(any(RefreshToken.class));
         }
     }
