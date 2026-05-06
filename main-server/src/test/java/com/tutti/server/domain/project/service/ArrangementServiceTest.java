@@ -3,6 +3,7 @@ package com.tutti.server.domain.project.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tutti.server.domain.instrument.repository.InstrumentCategoryRepository;
 import com.tutti.server.domain.instrument.repository.InstrumentRepository;
+import com.tutti.server.domain.project.entity.Project;
 import com.tutti.server.domain.project.entity.ProjectVersion;
 import com.tutti.server.domain.project.repository.ProjectVersionRepository;
 import com.tutti.server.domain.project.repository.VersionMappingRepository;
@@ -69,17 +70,25 @@ class ArrangementServiceTest {
 
             byte[] midiBytes = new byte[] { 0x4D, 0x54, 0x68, 0x64 }; // MIDI header
 
+            // Project 생성 — 악보 제목은 프로젝트 이름 기반
+            Project project = Project.builder()
+                    .name("나의 피아노곡")
+                    .originalFileName("test.mid")
+                    .build();
+            ReflectionTestUtils.setField(project, "id", 1L);
+
             ProjectVersion version = ProjectVersion.builder()
+                    .project(project)
                     .name("Ver 1")
                     .status(ProjectVersion.VersionStatus.PROCESSING)
                     .build();
             ReflectionTestUtils.setField(version, "id", 1L);
             given(versionRepository.findById(1L)).willReturn(Optional.of(version));
 
-            // Converter mock
+            // Converter mock — scoreTitle = "나의 피아노곡 - Ver 1"
             byte[] xmlBytes = "<score>".getBytes();
             byte[] pdfBytes = new byte[] { 0x25, 0x50, 0x44, 0x46 }; // PDF header
-            given(converterService.midiToMusicXml(midiBytes, "Ver 1")).willReturn(xmlBytes);
+            given(converterService.midiToMusicXml(midiBytes, "나의 피아노곡 - Ver 1")).willReturn(xmlBytes);
             given(converterService.midiToPdf(midiBytes)).willReturn(pdfBytes);
 
             // when

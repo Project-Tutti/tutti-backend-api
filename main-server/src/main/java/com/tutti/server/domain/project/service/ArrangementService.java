@@ -387,14 +387,11 @@ public class ArrangementService {
                 midiStoragePath, midiBytes, "audio/midi");
         log.info("MIDI 결과물 Supabase 업로드 완료: {}", midiStoragePath);
 
-        // 2. XML/PDF 변환 — 악보 제목 주입 (버전 이름 → 프로젝트 이름 순 폴백)
+        // 2. XML/PDF 변환 — 악보 제목 주입
+        //    프로젝트 이름 + 버전명을 조합합니다. (예: "나의 피아노곡 - Ver 1")
+        //    두 값 모두 DB에서 NOT NULL이므로 null 체크 불필요.
         String scoreTitle = versionRepository.findById(payload.getVersionId())
-                .map(v -> {
-                    // 버전 이름 우선, 없으면 프로젝트 이름으로 폴백
-                    String vName = v.getName();
-                    if (vName != null && !vName.isBlank()) return vName;
-                    return v.getProject().getName();
-                })
+                .map(v -> v.getProject().getName() + " - " + v.getName())
                 .orElse(null);
         log.info("악보 제목으로 사용할 값: '{}'", scoreTitle);
 
