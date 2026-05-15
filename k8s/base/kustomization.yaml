@@ -5,6 +5,11 @@ namespace: tutti
 
 resources:
   - namespace.yaml
+  # ── Redis (메시지 브로커: AI 요청 큐 + SSE 동기화) ──
+  - redis/deployment.yaml
+  - redis/service.yaml
+  - redis/pvc.yaml
+  # ── Main Server ──
   - main-server/deployment.yaml
   - main-server/service.yaml
   - main-server/hpa.yaml

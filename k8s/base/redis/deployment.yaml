@@ -1,0 +1,93 @@
+# ══════════════════════════════════════════════════════════════
+# Tutti — Redis Deployment (GKE 내부 메시지 브로커)
+# ══════════════════════════════════════════════════════════════
+#
+# 💡 Upstash Serverless Redis에서 GKE 내부 Redis로 마이그레이션:
+#   • 월간 커맨드 한도 제약 해소 (다중 Worker 운용 가능)
+#   • BLOCK 옵션 사용 가능 → 메시지 수신 지연 10초→0초
+#   • 클러스터 내부 통신으로 TLS 불필요 + 레이턴시 감소
+#
+# 역할:
+#   • AI 편곡 요청 큐잉 — Redis Streams (ai:arrange:stream)
+#   • SSE 멀티 Pod 동기화 — Pub/Sub (tutti:sse:progress)
+#
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: tutti
+  labels:
+    app: redis
+    tier: data
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  # ── 업데이트 전략 ──
+  # Redis는 단일 인스턴스이므로 Recreate 전략 사용
+  # (RollingUpdate 시 두 인스턴스가 동시에 같은 PVC에 접근 불가)
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: redis
+        tier: data
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          command:
+            - redis-server
+            - "--maxmemory"
+            - "200mb"
+            - "--maxmemory-policy"
+            - "allkeys-lru"
+            - "--save"
+            - "60 100"
+            - "--save"
+            - "300 1"
+            - "--appendonly"
+            - "no"
+            - "--requirepass"
+            - "$(REDIS_PASSWORD)"
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: tutti-secrets
+                  key: redis-password
+          ports:
+            - containerPort: 6379
+              name: redis
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "250m"
+              memory: "256Mi"
+          volumeMounts:
+            - name: redis-data
+              mountPath: /data
+          # ── 헬스체크 ──
+          # redis-cli ping은 인증 없이도 PONG을 반환
+          livenessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 5
+            periodSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            initialDelaySeconds: 3
+            periodSeconds: 10
+            failureThreshold: 3
+      volumes:
+        - name: redis-data
+          persistentVolumeClaim:
+            claimName: redis-pvc
+      # Spot VM에서 안전하게 종료되도록 grace period 설정
+      terminationGracePeriodSeconds: 30

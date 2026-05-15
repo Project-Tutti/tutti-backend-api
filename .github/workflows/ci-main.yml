@@ -218,6 +218,9 @@ jobs:
       # ── 배포 상태 확인 ──
       - name: Verify deployment
         run: |
+          echo "⏳ Waiting for redis rollout..."
+          kubectl rollout status deployment/redis -n tutti --timeout=120s
+
           echo "⏳ Waiting for main-server rollout..."
           kubectl rollout status deployment/main-server -n tutti --timeout=300s
 

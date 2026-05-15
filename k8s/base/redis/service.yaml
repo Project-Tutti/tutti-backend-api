@@ -1,0 +1,25 @@
+# ══════════════════════════════════════════════════════════════
+# Tutti — Redis Service (ClusterIP)
+# ══════════════════════════════════════════════════════════════
+#
+# 접근 방법:
+#   • GKE 내부: redis.tutti.svc.cluster.local:6379
+#   • 온프레미스 AI Worker: Cloudflare Tunnel TCP 프록시 경유
+#
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: tutti
+  labels:
+    app: redis
+    tier: data
+spec:
+  type: ClusterIP
+  selector:
+    app: redis
+  ports:
+    - port: 6379
+      targetPort: 6379
+      protocol: TCP
+      name: redis

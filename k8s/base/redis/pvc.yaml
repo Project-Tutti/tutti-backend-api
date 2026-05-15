@@ -1,0 +1,27 @@
+# ══════════════════════════════════════════════════════════════
+# Tutti — Redis PersistentVolumeClaim
+# ══════════════════════════════════════════════════════════════
+#
+# 💡 1Gi 근거:
+#   Redis가 메시지 브로커로만 사용됨 (캐시/세션 저장 없음)
+#   • Stream 메시지 1건 ~2KB, 동시 Pending 최대 ~10건
+#   • ACK 후 메시지 소비 → 축적 없음
+#   • 실제 사용량 < 10MB 예상 (1Gi의 1% 미만)
+#   • RDB 스냅샷 공간까지 충분히 확보
+#
+# 💰 비용: pd-standard 1Gi ≈ $0.04/월
+#
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-pvc
+  namespace: tutti
+  labels:
+    app: redis
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: standard  # pd-standard (비용 최소화)
