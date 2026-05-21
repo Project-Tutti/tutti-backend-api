@@ -151,11 +151,11 @@ spec:
                   key: redis-tls
           resources:
             requests:
-              cpu: "250m"       # e2-medium(2 vCPU)에 적합한 요청
-              memory: "384Mi"
+              cpu: "500m"       # 노드 4대: 콜백 처리 시 CPU 버스트 대비
+              memory: "512Mi"
             limits:
-              cpu: "1000m"
-              memory: "768Mi"   # Spring Boot 앱에 충분한 메모리
+              cpu: "1500m"
+              memory: "1Gi"     # 동시 변환 콜백 처리 시 메모리 여유 확보
           ports:
             - containerPort: 8080
               name: http

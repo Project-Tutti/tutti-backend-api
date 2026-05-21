@@ -9,8 +9,7 @@
 #     --namespace monitoring --create-namespace \
 #     -f kube-prometheus-stack-values.yaml
 #
-# ⚠️ GKE e2-medium 2노드 환경에 최적화된 경량 설정입니다.
-#    노드 확장 시 리소스 limits를 상향 조정하세요.
+# ⚠️ GKE 노드 4대 환경에 맞게 조정된 설정입니다.
 # ══════════════════════════════════════════════════════════════
 
 # ── Prometheus Server ──
@@ -23,11 +22,11 @@ prometheus:
     # 리소스 제한 (e2-medium 환경 최적화)
     resources:
       requests:
-        cpu: 200m
-        memory: 400Mi
+        cpu: 300m
+        memory: 600Mi
       limits:
-        cpu: 500m
-        memory: 800Mi
+        cpu: 800m
+        memory: 1200Mi
 
     # PVC: 5GB pd-standard (≈$0.20/월)
     storageSpec:
@@ -58,11 +57,11 @@ prometheus:
 grafana:
   resources:
     requests:
-      cpu: 100m
-      memory: 200Mi
+      cpu: 150m
+      memory: 256Mi
     limits:
-      cpu: 300m
-      memory: 400Mi
+      cpu: 400m
+      memory: 512Mi
 
   # 🔐 관리자 비밀번호 (K8s Secret으로 관리)
   # 배포 전 생성 필수:

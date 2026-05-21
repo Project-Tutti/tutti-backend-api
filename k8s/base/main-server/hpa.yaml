@@ -9,7 +9,7 @@ spec:
     kind: Deployment
     name: main-server
   minReplicas: 2   # 🛡️ 롤링 업데이트 시 최소 1대 유지 보장 (maxUnavailable: 0 + minReplicas: 2)
-  maxReplicas: 3   # 💡 모니터링 스택 리소스 확보 위해 축소 (노드 추가 시 확장 가능)
+  maxReplicas: 5   # 💡 노드 4대 환경: 부하 시 충분히 스케일아웃
   metrics:
     - type: Resource
       resource:
