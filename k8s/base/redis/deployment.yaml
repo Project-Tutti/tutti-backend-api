@@ -63,7 +63,7 @@ spec:
               name: redis
           resources:
             requests:
-              cpu: "200m"
+              cpu: "100m"       # 실사용 ~6m, 충분한 여유
               memory: "256Mi"
             limits:
               cpu: "500m"

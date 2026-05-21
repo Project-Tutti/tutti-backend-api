@@ -151,8 +151,8 @@ spec:
                   key: redis-tls
           resources:
             requests:
-              cpu: "500m"       # 노드 4대: 콜백 처리 시 CPU 버스트 대비
-              memory: "512Mi"
+              cpu: "300m"       # idle ~7m, 피크 시 burst 대비 + 노드 여유 확보
+              memory: "512Mi"   # 실사용 ~480Mi, GC 사이클 고려
             limits:
               cpu: "1500m"
               memory: "1Gi"     # 동시 변환 콜백 처리 시 메모리 여유 확보
